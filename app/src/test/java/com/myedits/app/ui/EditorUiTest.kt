@@ -310,6 +310,127 @@ class EditorUiTest {
         open(TestData.project()); click("editor_close"); assertEquals(1, exited)
     }
 
+    // ---- transitions, motion, effects, position, captions, voice ------------------------------------
+
+    @Test fun transitionPanelSetsTransitionLengthAndApplyAll() {
+        val p = TestData.project(n = 3); open(p)
+        click("tool_edit"); click("tool_transition"); rule.waitForTag("panel_transition")
+        click("transition_ZOOM")
+        assertEquals(Transition.ZOOM, project().clips[0].transition)
+        slider("slider_transition_ms", 900f)
+        assertEquals(900L, project().clips[0].transitionMs)
+        click("apply_all"); click("transition_FLASH")
+        assertEquals(listOf(Transition.FLASH, Transition.FLASH, Transition.NONE), project().clips.map { it.transition })
+        click("editor_undo")
+        assertEquals(Transition.ZOOM, project().clips[0].transition)
+        click("transition_NONE")
+        assertEquals(Transition.NONE, project().clips[0].transition)
+    }
+
+    @Test fun animatePanelAppliesKenBurns() {
+        val p = TestData.project(n = 2); open(p)
+        click("tool_edit"); click("tool_animate"); rule.waitForTag("panel_animate")
+        click("anim_ZOOM_IN")
+        assertEquals(ClipAnim.ZOOM_IN, project().clips[0].animation); assertEquals(ClipAnim.NONE, project().clips[1].animation)
+        click("apply_all"); click("anim_PAN_LEFT")
+        assertTrue(project().clips.all { it.animation == ClipAnim.PAN_LEFT })
+    }
+
+    @Test fun effectsPanelControlsBlurVignetteAndBars() {
+        val p = TestData.project(n = 2); open(p)
+        click("tool_effects"); rule.waitForTag("panel_effects")
+        slider("slider_blur", 0.5f); slider("slider_vignette", 0.8f); click("fx_bars")
+        val c = project().clips[0]
+        assertEquals(0.5f, c.blur, 0.02f); assertEquals(0.8f, c.vignette, 0.02f); assertTrue(c.bars)
+        assertEquals(0f, project().clips[1].blur, 0f)
+        click("fx_reset")
+        assertEquals(0f, project().clips[0].blur, 0f); assertFalse(project().clips[0].bars)
+        // the preview draws the look itself
+        click("panel_close"); rule.waitFor { true }
+    }
+
+    @Test fun previewShowsVignetteAndBarsOfTheCurrentClip() {
+        val p = TestData.project(n = 1); open(p)
+        click("tool_edit"); click("tool_effects"); click("fx_bars"); slider("slider_vignette", 0.6f)
+        rule.waitForTag("look_bars"); rule.waitForTag("look_vignette")
+    }
+
+    @Test fun positionPanelZoomPanFlipAndReset() {
+        val p = TestData.project(n = 1); open(p)
+        click("tool_edit"); click("tool_position"); rule.waitForTag("panel_position")
+        assertTrue(rule.onAllNodesWithTag("slider_pan_x").fetchSemanticsNodes().isEmpty())
+        slider("slider_zoom", 2f)
+        rule.waitForTag("slider_pan_x")
+        slider("slider_pan_x", 0.6f); slider("slider_pan_y", -0.4f)
+        click("pos_flip_h"); click("pos_rotate")
+        val c = project().clips[0]
+        assertEquals(2f, c.zoom, 0.05f); assertEquals(0.6f, c.panX, 0.05f); assertEquals(-0.4f, c.panY, 0.05f)
+        assertTrue(c.flipH); assertEquals(90, c.rotation)
+        click("pos_reset")
+        val r = project().clips[0]
+        assertEquals(1f, r.zoom, 0f); assertEquals(0f, r.panX, 0f); assertFalse(r.flipH); assertEquals(0, r.rotation)
+    }
+
+    @Test fun textAndStickerAnimationAndOpacity() {
+        val p = TestData.project(n = 2, withLayers = true); open(p)
+        val vm = vm(p)
+        val textId = p.texts.first().id
+        rule.runOnIdle { vm.select(com.myedits.app.ui.editor.Selection.OfText(textId)) }
+        click("tool_layer_anim"); rule.waitForTag("panel_layer_anim")
+        click("layer_anim_POP"); slider("slider_opacity", 0.5f)
+        assertEquals(LayerAnim.POP, project().texts[0].anim); assertEquals(0.5f, project().texts[0].opacity, 0.03f)
+        click("panel_close")
+        rule.runOnIdle { vm.select(com.myedits.app.ui.editor.Selection.OfSticker(p.stickers.first().id)) }
+        click("tool_layer_anim"); click("layer_anim_SLIDE_UP")
+        assertEquals(LayerAnim.SLIDE_UP, project().stickers[0].anim)
+    }
+
+    @Test fun captionsFromScriptAddsTimedTexts() {
+        val p = TestData.project(n = 3); open(p)
+        click("tool_captions"); rule.waitForTag("panel_captions")
+        tag("captions_add").assertIsNotEnabled()
+        tag("captions_input").performSemanticsAction(SemanticsActions.SetText) { it(androidx.compose.ui.text.AnnotatedString("Hello\nWorld\nBye")) }
+        rule.waitFor { true }
+        click("captions_add")
+        rule.waitFor { project().texts.size == 3 }
+        assertEquals(listOf("Hello", "World", "Bye"), project().texts.map { it.text })
+        assertEquals(listOf(0L, 3000L, 6000L), project().texts.map { it.startMs })
+    }
+
+    @Test fun voiceEffectsChangeAudioPitch() {
+        val p = TestData.project(n = 2, withLayers = true); open(p)
+        val vm = vm(p)
+        rule.runOnIdle { vm.select(com.myedits.app.ui.editor.Selection.OfAudio(p.audios.first().id)) }
+        click("tool_voice"); rule.waitForTag("panel_voice")
+        click("voice_chipmunk")
+        assertEquals(1.45f, project().audios[0].pitch, 0.01f)
+        slider("slider_pitch", 0.8f)
+        assertEquals(0.8f, project().audios[0].pitch, 0.02f)
+        click("voice_normal")
+        assertEquals(1f, project().audios[0].pitch, 0.01f)
+    }
+
+    @Test fun panelsCloseWhenTheSelectionNoLongerFits() {
+        val p = TestData.project(n = 2, withLayers = true); open(p)
+        val vm = vm(p)
+        click("tool_edit"); click("tool_transition"); rule.waitForTag("panel_transition")
+        rule.runOnIdle { vm.select(com.myedits.app.ui.editor.Selection.OfText(p.texts.first().id)) }
+        rule.waitForTagGone("panel_transition")
+        tag("toolbar_text").assertIsDisplayed()
+    }
+
+    @Test fun freezeFrameInsertsStillAndUndoRemovesIt() {
+        val p = TestData.project(n = 1); open(p)
+        val vm = vm(p)
+        rule.runOnIdle { vm.seek(1500) }
+        click("tool_edit"); click("tool_freeze")
+        rule.waitFor(15000) { project().clips.size == 3 }
+        assertTrue(project().clips[1].isImage); assertEquals(2000L, project().clips[1].durationMs)
+        assertEquals(p.durationMs + 2000L, project().durationMs)
+        click("editor_undo")
+        assertEquals(1, project().clips.size)
+    }
+
     private fun vm(p: Project): com.myedits.app.ui.editor.EditorViewModel {
         val owner = rule.activity
         val key = "androidx.lifecycle.ViewModelProvider.DefaultKey:editor_${p.id}"

@@ -167,15 +167,35 @@ class HomeUiTest {
         assertEquals("Persisted idea", TestData.app().container.ideas.load().single().text)
     }
 
-    @Test fun inspirationListsTemplatesAndUseOpensCreateSheet() {
-        show(); tag("tab_INSPIRATION").performClick(); waitTag("inspiration_list")
-        tag("template_reel").assertIsDisplayed()
-        tag("template_use_reel").performClick(); waitTag("create_sheet")
-        rule.onNodeWithText("Start with “Reel starter”").assertIsDisplayed()
-        tag("create_blank").performClick()
-        rule.waitFor { opened.isNotEmpty() }
-        val p = TestData.app().container.repository.list().single()
-        assertEquals("reel", p.template)
+    @Test fun templatesTabListsTemplatesByCategory() {
+        show(); tag("tab_TEMPLATES").performClick(); waitTag("inspiration_list")
+        tag("template_beat_drop").assertIsDisplayed()
+        tag("tpl_cat_TRAVEL").performClick()
+        rule.waitFor { rule.onAllNodesWithTag("template_travel_diary").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(rule.onAllNodesWithTag("template_beat_drop").fetchSemanticsNodes().isEmpty())
+        tag("tpl_cat_all").performClick()
+        rule.waitFor { rule.onAllNodesWithTag("template_beat_drop").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test fun tappingATemplateShowsItsDetails() {
+        show(); tag("tab_TEMPLATES").performClick(); waitTag("inspiration_list")
+        tag("template_beat_drop").performClick(); waitTag("template_sheet")
+        tag("template_sheet_title").assertIsDisplayed().assertTextContains("Beat Drop")
+        rule.onNodeWithText("Upbeat Pop", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Zoom punch", substring = true).assertIsDisplayed()
+        tag("template_use").assertIsDisplayed()
+    }
+
+    @Test fun projectsTabShowsTemplateRailAndSeeAllJumpsToTemplates() {
+        show(); waitTag("projects_empty")
+        tag("template_rail").assertIsDisplayed()
+        tag("rail_glow_up").performClick(); waitTag("template_sheet")
+        tag("template_sheet_title").assertTextContains("Glow Up")
+    }
+
+    @Test fun seeAllOpensTheTemplatesTab() {
+        show(); waitTag("template_rail")
+        tag("template_rail_all").performClick(); waitTag("inspiration_list")
     }
 
     @Test fun insightsReflectActivity() {

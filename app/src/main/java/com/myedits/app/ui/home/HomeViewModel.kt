@@ -58,28 +58,60 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         return "Project $n"
     }
 
-    private suspend fun newProject(name: String? = null, template: String = ""): Project {
+    private suspend fun newProject(name: String? = null, aspect: AspectRatio = AspectRatio.R9_16): Project {
         val now = System.currentTimeMillis()
-        val t = Templates.byId(template)
-        val p = Project(ProjectOps.newId(), name?.trim()?.ifEmpty { null } ?: nextName(), now, now, aspect = t?.aspect ?: AspectRatio.R9_16, template = if (template == "blank") "" else template)
+        val p = Project(ProjectOps.newId(), name?.trim()?.ifEmpty { null } ?: nextName(), now, now, aspect = aspect)
         withContext(Dispatchers.IO) { app.repository.save(p); app.activity.record(ActivityLog.CREATED) }
         return p
     }
 
-    fun createBlank(name: String? = null, template: String = "", camera: Boolean = false) {
-        viewModelScope.launch { val p = newProject(name, template); refresh(); _open.emit(p.id to camera) }
+    fun createBlank(name: String? = null, camera: Boolean = false) {
+        viewModelScope.launch { val p = newProject(name); refresh(); _open.emit(p.id to camera) }
     }
 
-    fun createFromUris(uris: List<Uri>, template: String = "", decorate: ((Project) -> Project)? = null) {
+    /** Builds a project from an Edits-style [template]: the picked media fill its slots in order. */
+    fun createFromTemplate(uris: List<Uri>, template: Template) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            busy = "Applying “${template.title}”…"
+            var created: Project? = null
+            try {
+                val picked = uris.take(template.slotCount)
+                val p = newProject(name = template.title, aspect = template.aspect).also { created = it }
+                val clips = app.importer.importVisual(p.id, picked)
+                val done = withContext(Dispatchers.IO) {
+                    Templates.apply(p, template, clips) { id, startMs -> templateSound(p.id, id, startMs) }
+                }
+                withContext(Dispatchers.IO) { app.repository.save(done); app.repository.writeCover(done) }
+                refresh()
+                _open.emit(p.id to false)
+            } catch (e: Exception) {
+                created?.let { withContext(Dispatchers.IO) { app.repository.delete(it.id) } }
+                refresh()
+                _messages.tryEmit(e.message ?: "Could not apply the template")
+            } finally { busy = null }
+        }
+    }
+
+    /** A synthesised library sound copied into the project, so the project never depends on the shared cache. */
+    private fun templateSound(projectId: String, soundId: String, startMs: Long): AudioTrack? = runCatching {
+        val item = com.myedits.app.audio.SoundLibrary.byId(soundId) ?: return null
+        val cached = com.myedits.app.audio.SoundLibrary.file(app.soundDir, soundId)
+        val target = app.repository.newMediaFile(projectId, "wav")
+        cached.copyTo(target, overwrite = true)
+        val kind = if (item.category == com.myedits.app.audio.SoundCategory.MUSIC) AudioKind.MUSIC else AudioKind.SFX
+        AudioTrack(id = ProjectOps.newId(), path = target.path, label = item.label, kind = kind, sourceDurationMs = item.durationMs, startMs = startMs)
+    }.getOrNull()
+
+    fun createFromUris(uris: List<Uri>, decorate: ((Project) -> Project)? = null) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
             busy = "Importing ${uris.size} item${if (uris.size > 1) "s" else ""}…"
             var created: Project? = null
             try {
-                val p = newProject(template = template).also { created = it }
+                val p = newProject().also { created = it }
                 val clips = app.importer.importVisual(p.id, uris)
                 var withClips = ProjectOps.appendClips(p, clips)
-                withClips = Templates.applyOnFirstImport(withClips, true)
                 decorate?.let { withClips = it(withClips) }
                 withContext(Dispatchers.IO) { app.repository.save(withClips); app.repository.writeCover(withClips) }
                 refresh()

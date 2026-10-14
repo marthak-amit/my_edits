@@ -12,16 +12,19 @@ timeline, text, stickers, audio, filters and HD export — built with Kotlin, Je
 | --- | --- |
 | **Home** | Projects grid with thumbnails, sort (recent / created / name), rename, duplicate (deep copy incl. media), delete with confirmation, autosaved drafts |
 | **Ideas** | Jot video ideas, tick them off, delete, or turn one into a new project |
-| **Inspiration** | Six starter looks (canvas, filter, fades, caption) applied to your first clips |
+| **Templates** | 12 Edits-style, slot-based templates in 5 categories (Trending, Travel, Cinematic, Memories, Lifestyle). Pick one, add up to *N* clips and get a finished edit: clips cut to the slot lengths, transitions, Ken-Burns motion, captions, colour look, cinema bars / vignette and a music bed with sound effects. Animated template posters on the Templates tab and a rail on the Projects tab |
 | **Insights** | Projects, exports, footage edited, day streak and a 7-day activity chart (from on-device activity) |
 | **Create** | Photo-picker import (videos + photos, up to 30), in-app **camera** (CameraX: record, flip, torch, 3s/10s timer), blank project |
 | **Timeline** | Playhead-centred, pinch-to-zoom, fling scrubbing, ruler, video thumbnails, real audio waveforms, drag handles to trim clips / audio / layers, drag layers to move them |
-| **Clip tools** | Split, trim, speed 0.1×–10×, volume 0–200 %, mute, fade in/out, rotate, flip, fit/fill, zoom, duplicate, delete, reorder, extract audio |
+| **Clip tools** | Split, trim, speed 0.1×–10×, volume 0–200 %, mute, fade in/out, rotate, flip, fit/fill, zoom + pan (crop & position), **freeze frame**, duplicate, delete, reorder, extract audio |
+| **Transitions & motion** | Per-cut transitions (fade, flash, zoom punch, slide, spin) with adjustable length; clip animations (zoom in/out, pan left/right, pulse); text & sticker entrance/exit animations (fade, pop, slide) and opacity |
+| **Effects** | Blur, vignette and cinema bars per clip (or all clips) |
 | **Look** | 13 filters with intensity, 6 manual adjustments (brightness, contrast, saturation, exposure, warmth, tint), "apply to all clips" |
 | **Canvas** | 9:16, 1:1, 4:5, 16:9, 3:4 |
 | **Text** | Six fonts, colours, background (solid / rounded), alignment, outline, shadow, drag / pinch / rotate on the preview, split on the timeline |
 | **Stickers** | Emoji stickers and photo overlays, same gestures |
-| **Audio** | Your own audio files, 4 built-in music beds + 9 effects (synthesised on-device), voiceover recording, text-to-speech, per-track volume and fades, split, trim |
+| **Audio** | Your own audio files, 4 built-in music beds + 9 effects (synthesised on-device), voiceover recording, text-to-speech, per-track volume and fades, **voice effects (pitch: chipmunk, deep, giant…)**, split, trim |
+| **Captions** | Type a script, one caption per line, and they are spread over the video as timed, animated captions |
 | **Undo / redo** | 80 steps; slider drags merge into one step |
 | **Export** | H.264 + AAC MP4 at 720p / 1080p / 4K (only offered if the device can encode it), original / 30 / 24 fps, saved to *Movies/My Edits*, share sheet, share to Instagram |
 
@@ -32,7 +35,7 @@ Text and stickers are rendered by one renderer used by both the live preview and
 
 * Instagram's licensed music library and trending audio — replaced by on-device synthesised sounds and your own files.
 * Automatic captions / speech recognition, AI cutouts, green screen, background removal.
-* Reverse playback, keyframes, per-clip transitions other than fade, video overlays (photo overlays are supported).
+* Reverse playback, keyframes, video overlays (photo overlays are supported), beat auto-detection (template timings are fixed, not analysed from the music).
 * Real Instagram analytics — *Insights* shows your own activity in this app.
 
 ## Verified on a real Android system
@@ -79,7 +82,8 @@ ui/        Compose screens: home, editor (timeline, preview, panels, export shee
 ## Testing
 
 * `ProjectOpsTest`, `ColorAndAudioMathTest`, `RepositoryAndSoundTest` — engine, colour/audio maths, persistence, synthesised audio.
+* `TemplatesAndMotionTest` — template catalogue + layout, transition / animation maths, new timeline ops, composition effects.
 * `HomeUiTest`, `EditorUiTest` — Robolectric + Compose tests that drive the real screens (taps, sliders, text input, panels, undo/redo, autosave, export sheet).
 * `ScreenshotTest` — Roborazzi renders every main screen to `screenshots/jvm/`.
 * Debug builds accept `adb shell am start -n com.myedits.app.debug/com.myedits.app.MainActivity --esa seed_media /sdcard/a.mp4,/sdcard/b.jpg`
-  to create a project from local files for on-device testing.
+  to create a project from local files for on-device testing; add `--es seed_template beat_drop` to build it from a template.

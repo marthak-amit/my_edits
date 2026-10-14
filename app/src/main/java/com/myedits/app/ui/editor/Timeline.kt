@@ -114,6 +114,7 @@ fun Timeline(
     onTrimAudio: (id: String, inMs: Long, outMs: Long, startMs: Long) -> Unit,
     onAddClip: () -> Unit,
     modifier: Modifier = Modifier,
+    playing: Boolean = false,
     maxHeight: androidx.compose.ui.unit.Dp = 216.dp,
 ) {
     val density = LocalDensity.current
@@ -133,6 +134,9 @@ fun Timeline(
     val curSelection by rememberUpdatedState(selection)
     val curPx by rememberUpdatedState(pxPerMs)
     val curDraft by rememberUpdatedState(draft)
+    val curPlaying by rememberUpdatedState(playing)
+    // Starting playback must stop any fling still scrubbing the playhead, or the two fight and play looks dead.
+    LaunchedEffect(playing) { if (playing) fling.stop() }
 
     val rulerH = with(density) { RULER_H.toPx() }
     val clipH = with(density) { CLIP_H.toPx() }
@@ -372,7 +376,7 @@ fun Timeline(
                                     fling.snapTo(scrubPos.toFloat())
                                     fling.animateDecay(-vx / curPx, exponentialDecay(frictionMultiplier = 1.6f)) {
                                         val ms = value.coerceIn(0f, curLiveTotal.toFloat())
-                                        onSeek(ms.toLong())
+                                        if (!curPlaying) onSeek(ms.toLong()) else scope.launch { fling.stop() }
                                         if (ms <= 0f || ms >= curLiveTotal.toFloat()) scope.launch { fling.stop() }
                                     }
                                 }

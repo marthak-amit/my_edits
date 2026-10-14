@@ -61,10 +61,18 @@ object CompositionBuilder {
         val sequences = mutableListOf(video)
         p.audios.filter { it.startMs < totalMs }.take(MAX_AUDIO_TRACKS).forEach { sequences += audioSequence(it, totalMs) }
 
-        // --- composition level effects: fades first, then burned-in overlays, then fps ---------
+        // --- composition level effects (absolute timeline time): motion, fades/transition colour, overlays, fps ---
         val videoEffects = mutableListOf<Effect>()
+        val spans = ProjectOps.spans(p)
+        val anims = MotionMath.animSegments(spans)
+        val transitions = MotionMath.transitionSegments(spans)
+        if (anims.isNotEmpty() || transitions.any { it.type != Transition.FADE && it.type != Transition.FLASH && it.type != Transition.NONE }) {
+            videoEffects += MotionEffect(anims, transitions, spec.width.toFloat() / spec.height)
+        }
         val fades = fadeSegments(p)
-        if (fades.any { it.fadeInUs > 0 || it.fadeOutUs > 0 }) videoEffects += FadeEffect(fades)
+        if (fades.any { it.fadeInUs > 0 || it.fadeOutUs > 0 } || transitions.any { it.type == Transition.FADE || it.type == Transition.FLASH }) {
+            videoEffects += FadeEffect(fades, transitions)
+        }
         if (spec.includeOverlays) {
             val overlays = overlays(p, spec.width, spec.height)
             if (overlays.isNotEmpty()) videoEffects += OverlayEffect(overlays)
@@ -136,10 +144,14 @@ object CompositionBuilder {
             spec.width, spec.height,
             if (c.fit == FitMode.FIT) Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP,
         )
-        // 5. user zoom, about the frame centre
+        // 5. blur, in canvas pixels so it looks the same at every export size
+        if (c.blur > 0f) videoEffects += GaussianBlur(c.blur * 0.012f * spec.height)
+        // 6. user zoom and position inside the zoomed frame (pan can never reveal an edge: it is limited to the overscan)
         if (c.zoom != 1f) {
             val z = c.zoom
-            videoEffects += MatrixTransformation { _ -> Matrix().apply { postScale(z, z) } }
+            val tx = c.panX.coerceIn(-1f, 1f) * (z - 1f)
+            val ty = -c.panY.coerceIn(-1f, 1f) * (z - 1f)
+            videoEffects += MatrixTransformation { _ -> Matrix().apply { postScale(z, z); postTranslate(tx, ty) } }
         }
         // audio gain after speed so fades are measured in output time
         audioProcessors += GainAudioProcessor(c.volume, c.fadeInMs, c.fadeOutMs, c.durationMs)
@@ -168,7 +180,10 @@ object CompositionBuilder {
             .setDurationUs(a.sourceDurationMs * 1000)
             .setEffects(
                 Effects(
-                    listOf(GainAudioProcessor(a.volume, a.fadeInMs, minOf(a.fadeOutMs, durationMs), durationMs)),
+                    buildList {
+                        if (a.pitch != 1f) add(SonicAudioProcessor().apply { setPitch(a.pitch) })
+                        add(GainAudioProcessor(a.volume, a.fadeInMs, minOf(a.fadeOutMs, durationMs), durationMs))
+                    },
                     emptyList(),
                 ),
             )
@@ -183,39 +198,55 @@ object CompositionBuilder {
 
     // ---- burned-in overlays ---------------------------------------------------------------
 
-    /** A bitmap overlay that is only visible during [startUs, endUs). */
+    /** A bitmap overlay whose placement, opacity and scale are computed per frame (entrances, exits, hiding). */
     private class TimedOverlay(
         private val bitmap: Bitmap,
-        private val startUs: Long,
-        private val endUs: Long,
-        private val visible: OverlaySettings,
-        private val hidden: OverlaySettings,
+        private val settingsAt: (Long) -> OverlaySettings,
     ) : BitmapOverlay() {
         override fun getBitmap(presentationTimeUs: Long): Bitmap = bitmap
-        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings =
-            if (presentationTimeUs in startUs until endUs) visible else hidden
+        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = settingsAt(presentationTimeUs)
     }
 
     fun overlays(p: Project, w: Int, h: Int): List<TextureOverlay> {
         val out = mutableListOf<TextureOverlay>()
+        // look effects first so text and stickers always sit on top of them
+        val vignettes = HashMap<Int, Bitmap>()
+        var bars: Bitmap? = null
+        ProjectOps.spans(p).forEach { sp ->
+            val startUs = sp.startMs * 1000; val endUs = sp.endMs * 1000
+            if (sp.clip.vignette > 0f) {
+                val key = (sp.clip.vignette * 100).toInt()
+                val bmp = vignettes.getOrPut(key) { LayerRenderer.vignette(w, h, sp.clip.vignette) }
+                out += TimedOverlay(bmp) { t -> fullFrame(if (t in startUs until endUs) 1f else 0f) }
+            }
+            if (sp.clip.bars) {
+                val bmp = bars ?: LayerRenderer.bars(w, h).also { bars = it }
+                out += TimedOverlay(bmp) { t -> fullFrame(if (t in startUs until endUs) 1f else 0f) }
+            }
+        }
         p.stickers.forEach { s ->
-            val bmp = LayerRenderer.renderSticker(s, w, h)
-            out += timed(bmp, s.startMs, s.endMs, s.x, s.y, s.rotation)
+            out += layerOverlay(LayerRenderer.renderSticker(s, w, h), s.startMs, s.endMs, s.x, s.y, s.rotation, s.anim, s.opacity)
         }
         p.texts.forEach { t ->
-            val bmp = LayerRenderer.renderText(t, w, h)
-            out += timed(bmp, t.startMs, t.endMs, t.x, t.y, t.rotation)
+            out += layerOverlay(LayerRenderer.renderText(t, w, h), t.startMs, t.endMs, t.x, t.y, t.rotation, t.anim, t.opacity)
         }
         return out
     }
 
-    private fun timed(bmp: Bitmap, startMs: Long, endMs: Long, x: Float, y: Float, rotation: Float): TextureOverlay {
-        fun settings(alpha: Float): OverlaySettings = StaticOverlaySettings.Builder()
-            .setOverlayFrameAnchor(0f, 0f)
-            .setBackgroundFrameAnchor(x * 2f - 1f, 1f - y * 2f)
-            .setRotationDegrees(-rotation)
-            .setAlphaScale(alpha)
-            .build()
-        return TimedOverlay(bmp, startMs * 1000, endMs * 1000, settings(1f), settings(0f))
-    }
+    private fun fullFrame(alpha: Float): OverlaySettings =
+        StaticOverlaySettings.Builder().setOverlayFrameAnchor(0f, 0f).setBackgroundFrameAnchor(0f, 0f).setAlphaScale(alpha).build()
+
+    private fun layerOverlay(bmp: Bitmap, startMs: Long, endMs: Long, x: Float, y: Float, rotation: Float, anim: LayerAnim, opacity: Float): TextureOverlay =
+        TimedOverlay(bmp) { tUs ->
+            val tMs = tUs / 1000
+            val visible = tMs in startMs until endMs
+            val pose = if (visible) LayerAnimMath.pose(anim, tMs, startMs, endMs, opacity) else LayerPose(0f, 1f, 0f, 0f)
+            StaticOverlaySettings.Builder()
+                .setOverlayFrameAnchor(0f, 0f)
+                .setBackgroundFrameAnchor((x + pose.dx) * 2f - 1f, 1f - (y + pose.dy) * 2f)
+                .setRotationDegrees(-rotation)
+                .setScale(pose.scale, pose.scale)
+                .setAlphaScale(pose.alpha)
+                .build()
+        }
 }

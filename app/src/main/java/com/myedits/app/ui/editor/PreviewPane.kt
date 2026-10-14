@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -30,7 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import com.myedits.app.data.*
+import com.myedits.app.engine.LayerAnimMath
+import com.myedits.app.engine.LayerPose
 import com.myedits.app.engine.LayerRenderer
+import com.myedits.app.engine.ProjectOps
 import com.myedits.app.ui.theme.EditsColors
 import kotlin.math.cos
 import kotlin.math.max
@@ -43,6 +47,7 @@ private data class LayerVisual(
     val sel: Selection,
     val bitmap: Bitmap,
     val x: Float, val y: Float, val rotation: Float,
+    val pose: LayerPose = LayerPose(1f, 1f, 0f, 0f),
 )
 
 @UnstableApi
@@ -72,6 +77,7 @@ fun PreviewPane(
             } else {
                 surface(vm)
             }
+            LookOverlays(project, playhead)
             LayerOverlay(vm, project, playhead, w.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1))
         }
     }
@@ -99,11 +105,11 @@ private fun LayerOverlay(vm: EditorViewModel, project: Project, playhead: Long, 
     val visuals = ArrayList<LayerVisual>()
     visibleStickers.forEach { s ->
         val bmp = remember(s.kind, s.emoji, s.path, s.scale, w) { LayerRenderer.renderSticker(s, w, h) }
-        visuals += LayerVisual(Selection.OfSticker(s.id), bmp, s.x, s.y, s.rotation)
+        visuals += LayerVisual(Selection.OfSticker(s.id), bmp, s.x, s.y, s.rotation, LayerAnimMath.pose(s.anim, playhead, s.startMs, s.endMs, s.opacity))
     }
     visibleTexts.forEach { t ->
         val bmp = remember(t.text, t.color, t.bgColor, t.bg, t.font, t.align, t.outline, t.shadow, t.scale, w, h) { LayerRenderer.renderText(t, w, h) }
-        visuals += LayerVisual(Selection.OfText(t.id), bmp, t.x, t.y, t.rotation)
+        visuals += LayerVisual(Selection.OfText(t.id), bmp, t.x, t.y, t.rotation, LayerAnimMath.pose(t.anim, playhead, t.startMs, t.endMs, t.opacity))
     }
 
     val curVisuals by rememberUpdatedState(visuals.toList())
@@ -150,8 +156,8 @@ private fun LayerOverlay(vm: EditorViewModel, project: Project, playhead: Long, 
             val bw = v.bitmap.width; val bh = v.bitmap.height
             Box(
                 Modifier
-                    .offset { IntOffset((v.x * w - bw / 2f).roundToInt(), (v.y * h - bh / 2f).roundToInt()) }
-                    .graphicsLayer { rotationZ = v.rotation }
+                    .offset { IntOffset(((v.x + v.pose.dx) * w - bw / 2f).roundToInt(), ((v.y + v.pose.dy) * h - bh / 2f).roundToInt()) }
+                    .graphicsLayer { rotationZ = v.rotation; scaleX = v.pose.scale; scaleY = v.pose.scale; alpha = v.pose.alpha }
                     .size(with(LocalDensity.current) { bw.toDp() }, with(LocalDensity.current) { bh.toDp() })
                     .then(if (selected) Modifier.border(1.5.dp, Color.White) else Modifier),
             ) { Image(v.bitmap.asImageBitmap(), null, Modifier.fillMaxSize()) }
@@ -181,5 +187,31 @@ private fun applyTransform(vm: EditorViewModel, project: Project, sel: Selection
             vm.transformSticker(s.id, s.x + pan.x / w, s.y + pan.y / h, (s.scale * zoom).coerceIn(0.05f, 3f), s.rotation + rotDeg)
         }
         else -> {}
+    }
+}
+
+/** Vignette and cinema bars of the clip under the playhead (export burns the same effects into the frames). */
+@Composable
+private fun BoxScope.LookOverlays(project: Project, playhead: Long) {
+    val clip = ProjectOps.spanAt(project, playhead)?.clip ?: return
+    if (clip.vignette > 0f) {
+        val edge = 0.15f + 0.8f * clip.vignette.coerceIn(0f, 1f)
+        Box(
+            Modifier.fillMaxSize().testTag("look_vignette").drawBehind {
+                drawRect(
+                    androidx.compose.ui.graphics.Brush.radialGradient(
+                        0f to Color.Transparent, 0.42f to Color.Transparent, 1f to Color.Black.copy(alpha = edge),
+                        center = center, radius = kotlin.math.hypot(size.width / 2f, size.height / 2f),
+                    ),
+                )
+            },
+        )
+    }
+    if (clip.bars) {
+        Column(Modifier.fillMaxSize().testTag("look_bars")) {
+            Box(Modifier.fillMaxWidth().weight(LayerRenderer.BARS_FRACTION).background(Color.Black))
+            Spacer(Modifier.weight(1f - 2 * LayerRenderer.BARS_FRACTION))
+            Box(Modifier.fillMaxWidth().weight(LayerRenderer.BARS_FRACTION).background(Color.Black))
+        }
     }
 }

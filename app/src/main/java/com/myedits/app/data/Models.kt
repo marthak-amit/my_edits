@@ -43,6 +43,34 @@ enum class AudioKind(val label: String) {
 @Serializable
 enum class StickerKind { EMOJI, IMAGE }
 
+/** What happens at the cut from a clip to the next one. Drawn around the boundary on the whole frame. */
+@Serializable
+enum class Transition(val label: String, val emoji: String) {
+    NONE("None", "⏹"),
+    FADE("Fade", "🌑"),
+    FLASH("Flash", "⚡"),
+    ZOOM("Zoom punch", "🔍"),
+    SLIDE("Slide", "➡️"),
+    SPIN("Spin", "🌀"),
+}
+
+/** Slow movement across a whole clip (the "Ken Burns" family). */
+@Serializable
+enum class ClipAnim(val label: String, val emoji: String) {
+    NONE("None", "⏹"),
+    ZOOM_IN("Zoom in", "➕"),
+    ZOOM_OUT("Zoom out", "➖"),
+    PAN_LEFT("Pan left", "⬅️"),
+    PAN_RIGHT("Pan right", "➡️"),
+    PULSE("Pulse", "💓"),
+}
+
+/** Entrance (and exit) animation for text and stickers. */
+@Serializable
+enum class LayerAnim(val label: String) {
+    NONE("None"), FADE("Fade"), POP("Pop"), SLIDE_UP("Slide up"), SLIDE_LEFT("Slide in"),
+}
+
 /** Basic colour adjustments. All values in -1..1 where 0 is neutral. */
 @Serializable
 data class Adjust(
@@ -81,6 +109,16 @@ data class Clip(
     val fadeOutMs: Long = 0L,
     val width: Int = 0,
     val height: Int = 0,
+    /** Offsets inside the zoomed frame, -1..1 (only has an effect when [zoom] > 1). */
+    val panX: Float = 0f,
+    val panY: Float = 0f,
+    val transition: Transition = Transition.NONE,
+    val transitionMs: Long = 500L,
+    val animation: ClipAnim = ClipAnim.NONE,
+    /** 0..1 strength of each look effect. */
+    val blur: Float = 0f,
+    val vignette: Float = 0f,
+    val bars: Boolean = false,
 ) {
     /** Length on the timeline after the speed change. */
     val durationMs: Long get() = ((outMs - inMs) / speed).toLong().coerceAtLeast(1L)
@@ -105,6 +143,8 @@ data class TextLayer(
     val align: TextAlign = TextAlign.CENTER,
     val outline: Boolean = false,
     val shadow: Boolean = true,
+    val anim: LayerAnim = LayerAnim.NONE,
+    val opacity: Float = 1f,
 ) {
     val endMs: Long get() = startMs + durationMs
 }
@@ -122,6 +162,8 @@ data class StickerLayer(
     /** Fraction of canvas width the sticker's longest side occupies at scale 1. */
     val scale: Float = 1f,
     val rotation: Float = 0f,
+    val anim: LayerAnim = LayerAnim.NONE,
+    val opacity: Float = 1f,
 ) {
     val endMs: Long get() = startMs + durationMs
 }
@@ -140,6 +182,8 @@ data class AudioTrack(
     val volume: Float = 1f,
     val fadeInMs: Long = 0L,
     val fadeOutMs: Long = 0L,
+    /** 1 = natural; >1 higher (chipmunk), <1 lower. Changes pitch without changing speed. */
+    val pitch: Float = 1f,
 ) {
     val durationMs: Long get() = (outMs - inMs).coerceAtLeast(1L)
     val endMs: Long get() = startMs + durationMs
@@ -158,7 +202,7 @@ data class Project(
     val stickers: List<StickerLayer> = emptyList(),
     val audios: List<AudioTrack> = emptyList(),
     val exportCount: Int = 0,
-    /** Inspiration recipe applied when the first media arrives; cleared afterwards. */
+    /** Id of the template this project was created from (empty when started from scratch). */
     val template: String = "",
 ) {
     val durationMs: Long get() = clips.sumOf { it.durationMs }

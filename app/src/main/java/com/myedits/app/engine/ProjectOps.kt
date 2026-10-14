@@ -123,6 +123,67 @@ object ProjectOps {
     fun setCanvas(p: Project, aspect: AspectRatio, background: Long = p.background): Project =
         p.copy(aspect = aspect, background = background)
 
+    // ---- transitions, motion, freeze frames ---------------------------------------------
+
+    const val MIN_TRANSITION_MS = 150L
+    const val MAX_TRANSITION_MS = 1500L
+
+    /** The longest a transition out of [c] may last: a third of the shorter neighbour, so two never overlap. */
+    fun maxTransitionMs(p: Project, clipId: String): Long {
+        val i = p.clips.indexOfFirst { it.id == clipId }
+        if (i < 0 || i == p.clips.lastIndex) return MIN_TRANSITION_MS
+        val shorter = minOf(p.clips[i].durationMs, p.clips[i + 1].durationMs)
+        return (shorter / 3).coerceIn(MIN_TRANSITION_MS, MAX_TRANSITION_MS)
+    }
+
+    fun setTransition(p: Project, clipId: String, type: Transition, ms: Long? = null): Project =
+        updateClip(p, clipId) { it.copy(transition = type, transitionMs = (ms ?: it.transitionMs).coerceIn(MIN_TRANSITION_MS, maxTransitionMs(p, clipId))) }
+
+    fun setTransitionForAll(p: Project, type: Transition, ms: Long? = null): Project =
+        p.copy(clips = p.clips.mapIndexed { i, c ->
+            if (i == p.clips.lastIndex) c.copy(transition = Transition.NONE)
+            else c.copy(transition = type, transitionMs = (ms ?: c.transitionMs).coerceIn(MIN_TRANSITION_MS, maxTransitionMs(p, c.id)))
+        })
+
+    /**
+     * Puts [clip] on the main track at [timeMs]. A clip that is cut through is split there; a position that
+     * would leave a sliver snaps to the nearer boundary.
+     */
+    fun insertClipAt(p: Project, timeMs: Long, clip: Clip): Project {
+        if (p.clips.isEmpty()) return p.copy(clips = listOf(clip))
+        val span = spanAt(p, timeMs) ?: return appendClips(p, listOf(clip))
+        val off = timeMs - span.startMs
+        val c = span.clip
+        return when {
+            timeMs >= p.durationMs - MIN_CLIP_MS || off >= c.durationMs - MIN_CLIP_MS -> insertAfterIndex(p, span.index, clip)
+            off < MIN_CLIP_MS -> insertAfterIndex(p, span.index - 1, clip)
+            else -> splitAt(p, timeMs)?.let { insertAfterIndex(it, span.index, clip) } ?: insertAfterIndex(p, span.index, clip)
+        }
+    }
+
+    private fun insertAfterIndex(p: Project, index: Int, clip: Clip): Project =
+        p.copy(clips = p.clips.toMutableList().apply { add((index + 1).coerceIn(0, size), clip) })
+
+    /** A still [path] for [holdMs] — used to freeze the frame under the playhead. */
+    fun freezeClip(path: String, w: Int, h: Int, holdMs: Long, rotation: Int = 0, fit: FitMode = FitMode.FIT): Clip =
+        makeImageClip(path, w, h, holdMs).copy(rotation = rotation, fit = fit)
+
+    /** Turns a script (one caption per line) into timed captions spread evenly over the video. */
+    fun captionsFromScript(p: Project, script: String, template: TextLayer? = null): Project {
+        val lines = script.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val total = p.durationMs
+        if (lines.isEmpty() || total <= 0L) return p
+        val per = (total / lines.size).coerceAtLeast(MIN_LAYER_MS)
+        var out = p
+        lines.forEachIndexed { i, line ->
+            val start = (i * per).coerceAtMost((total - MIN_LAYER_MS).coerceAtLeast(0L))
+            val dur = if (i == lines.lastIndex) (total - start) else per
+            val base = template ?: TextLayer(id = "", text = "", startMs = 0, durationMs = 0, y = 0.8f, font = FontStyleId.BOLD, bg = TextBg.ROUNDED, bgColor = 0x99000000, anim = LayerAnim.FADE)
+            out = addText(out, base.copy(id = newId(), text = line.take(120), startMs = start, durationMs = dur.coerceAtLeast(MIN_LAYER_MS)))
+        }
+        return out
+    }
+
     // ---- text / sticker layers --------------------------------------------------------
 
     fun addText(p: Project, text: TextLayer): Project = p.copy(texts = p.texts + clampLayer(p, text))

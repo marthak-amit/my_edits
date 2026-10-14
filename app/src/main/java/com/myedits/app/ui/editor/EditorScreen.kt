@@ -106,6 +106,7 @@ fun EditorScreen(
         BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding().imePadding().testTag("editor_screen")) {
             // Keep the preview big: tool panels get a bounded share of the height and the timeline
             // shrinks to its essentials while a panel is open.
+            val playing by vm.playing.collectAsState()
             val panelMax = (maxHeight * 0.44f).coerceIn(200.dp, 340.dp)
             val timelineMax = if (vm.panel != Panel.NONE) 104.dp else 216.dp
             Column(Modifier.fillMaxSize()) {
@@ -119,6 +120,7 @@ fun EditorScreen(
                     onLayerTiming = vm::setLayerTiming,
                     onTrimAudio = vm::trimAudio,
                     onAddClip = actions.pickMedia,
+                    playing = playing,
                     maxHeight = timelineMax,
                 )
                 EditorBottom(vm, actions, Modifier.heightIn(max = panelMax))

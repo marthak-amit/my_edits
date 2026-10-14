@@ -14,7 +14,6 @@ import com.myedits.app.audio.TtsHelper
 import com.myedits.app.audio.VoiceRecorder
 import com.myedits.app.data.*
 import com.myedits.app.engine.*
-import com.myedits.app.data.Templates
 import com.myedits.app.util.Thumbs
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,7 +32,11 @@ sealed interface Selection {
     data class OfAudio(val id: String) : Selection
 }
 
-enum class Panel { NONE, SPEED, VOLUME, FADE, FILTER, ADJUST, CANVAS, AUDIO, SOUNDS, TEXT_STYLE, TEXT_EDIT, STICKERS, EXPORT, TTS }
+enum class Panel { NONE, SPEED, VOLUME, FADE, FILTER, ADJUST, CANVAS, AUDIO, SOUNDS, TEXT_STYLE, TEXT_EDIT, STICKERS, EXPORT, TTS, TRANSITION, ANIMATE, EFFECTS, POSITION, LAYER_ANIM, CAPTIONS, VOICE }
+
+private const val END_SLACK_MS = 60L
+private const val END_HOLD_MS = 700L
+private val CLIP_PANELS = setOf(Panel.TRANSITION, Panel.ANIMATE, Panel.POSITION, Panel.EFFECTS)
 
 sealed interface ExportUi {
     data object Idle : ExportUi
@@ -57,6 +60,7 @@ class EditorViewModel(
     )
         private set
     var playheadMs by mutableStateOf(0L); private set
+    private var atEndSince = 0L
     var selection by mutableStateOf<Selection>(Selection.None); private set
     var panel by mutableStateOf(Panel.NONE); private set
     var busy by mutableStateOf<String?>(null); private set
@@ -97,6 +101,12 @@ class EditorViewModel(
             // Mirror the player clock into the UI while playing.
             while (isActive) {
                 if (preview.isPlaying) playheadMs = preview.positionMs.coerceIn(0L, totalMs)
+                // Safety net: some pipelines park on the last frame without ever reporting "ended", which left the
+                // button showing "pause" over a frozen picture. Treat "at the end for a moment" as finished.
+                if (playing.value && totalMs > 0 && playheadMs >= totalMs - END_SLACK_MS) {
+                    if (atEndSince == 0L) atEndSince = System.currentTimeMillis()
+                    else if (System.currentTimeMillis() - atEndSince > END_HOLD_MS) { atEndSince = 0L; preview.pause(); playheadMs = totalMs }
+                } else atEndSince = 0L
                 if (recording) recordLevel = voice.level()
                 delay(16)
             }
@@ -183,6 +193,9 @@ class EditorViewModel(
         selection = s
         if (s == Selection.None) panel = Panel.NONE
         else if (panel == Panel.SPEED || panel == Panel.VOLUME || panel == Panel.FADE) panel = Panel.NONE
+        else if (panel in CLIP_PANELS && s !is Selection.OfClip) panel = Panel.NONE
+        else if (panel == Panel.LAYER_ANIM && s !is Selection.OfText && s !is Selection.OfSticker) panel = Panel.NONE
+        else if (panel == Panel.VOICE && s !is Selection.OfAudio) panel = Panel.NONE
         // jump the playhead into the selected thing so what you edit is what you see
         when (s) {
             is Selection.OfText -> project.texts.firstOrNull { it.id == s.id }?.let { if (playheadMs !in it.startMs until it.endMs) seek(it.startMs) }
@@ -199,11 +212,11 @@ class EditorViewModel(
 
     fun togglePlay() {
         if (project.isEmpty) return
-        if (preview.isPlaying) preview.pause() else {
-            if (playheadMs >= totalMs - 30) { playheadMs = 0; preview.seekTo(0) }
-            preview.seekTo(playheadMs)
-            preview.play()
-        }
+        // Decide from the user's intent (what the button shows), never from "is a frame rendering right now".
+        if (playing.value) { preview.pause(); return }
+        if (playheadMs >= totalMs - 30) playheadMs = 0
+        preview.seekTo(playheadMs)
+        preview.play()
     }
 
     fun pause() = preview.pause()
@@ -307,6 +320,81 @@ class EditorViewModel(
 
     fun setCanvas(aspect: AspectRatio) = edit { ProjectOps.setCanvas(it, aspect) }
 
+    // ---- transitions, motion, look effects, position ---------------------------------------------
+
+    fun setTransition(type: Transition, all: Boolean = false) {
+        val c = selectedClip ?: return
+        edit { if (all) ProjectOps.setTransitionForAll(it, type) else ProjectOps.setTransition(it, c.id, type) }
+        if (type != Transition.NONE && project.clips.lastOrNull()?.id == c.id && !all) _messages.tryEmit("A transition plays between two clips — this is the last clip")
+    }
+
+    fun setTransitionDuration(ms: Long) {
+        val c = selectedClip ?: return
+        edit("tdur:${c.id}") { ProjectOps.setTransition(it, c.id, c.transition, ms) }
+    }
+
+    fun setClipAnim(anim: ClipAnim, all: Boolean = false) {
+        val f: (Clip) -> Clip = { it.copy(animation = anim) }
+        if (all) edit { ProjectOps.updateAllClips(it, f) } else updateClip(null, f)
+    }
+
+    fun setBlur(v: Float, all: Boolean) = look("blur", all) { it.copy(blur = v.coerceIn(0f, 1f)) }
+    fun setVignette(v: Float, all: Boolean) = look("vig", all) { it.copy(vignette = v.coerceIn(0f, 1f)) }
+    fun setBars(on: Boolean, all: Boolean) = look(null, all) { it.copy(bars = on) }
+
+    private fun look(key: String?, all: Boolean, f: (Clip) -> Clip) {
+        if (all) edit(key?.let { "$it-all" }) { ProjectOps.updateAllClips(it, f) } else updateClip(key, f)
+    }
+
+    fun setPan(x: Float, y: Float) = updateClip("pan") { it.copy(panX = x.coerceIn(-1f, 1f), panY = y.coerceIn(-1f, 1f)) }
+    fun resetPosition() = updateClip(null) { it.copy(zoom = 1f, panX = 0f, panY = 0f, rotation = 0, flipH = false, flipV = false) }
+
+    /** Replaces the frame under the playhead with a 2 s still ("freeze frame"), splitting the clip there. */
+    fun freezeFrame() {
+        val span = ProjectOps.spanAt(project, playheadMs) ?: return
+        val c = span.clip
+        pause()
+        viewModelScope.launch {
+            busy = "Freezing frame…"
+            try {
+                val srcMs = c.inMs + ((playheadMs - span.startMs).coerceAtLeast(0L) * c.speed).toLong()
+                val bmp = com.myedits.app.util.Thumbs.frame(c.path, c.isImage, srcMs, 1440) ?: throw IllegalStateException("Could not read that frame")
+                val file = repo.newMediaFile(projectId, "jpg")
+                withContext(Dispatchers.IO) { file.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) } }
+                val still = ProjectOps.freezeClip(file.path, bmp.width, bmp.height, 2000L, c.rotation, c.fit)
+                    .copy(flipH = c.flipH, flipV = c.flipV, filter = c.filter, filterIntensity = c.filterIntensity, adjust = c.adjust, vignette = c.vignette, bars = c.bars, blur = c.blur, zoom = c.zoom, panX = c.panX, panY = c.panY, id = ProjectOps.newId())
+                edit { ProjectOps.insertClipAt(it, playheadMs, still) }
+                selection = Selection.OfClip(still.id)
+                _messages.tryEmit("Froze the frame for 2 s")
+            } catch (e: Exception) { _messages.tryEmit(e.message ?: "Could not freeze the frame") }
+            finally { busy = null }
+        }
+    }
+
+    fun addCaptions(script: String) {
+        val before = project.texts.size
+        edit { ProjectOps.captionsFromScript(it, script) }
+        val added = project.texts.size - before
+        _messages.tryEmit(if (added > 0) "Added $added caption${if (added > 1) "s" else ""}" else "Type one caption per line")
+    }
+
+    fun setLayerAnim(anim: LayerAnim) {
+        when (val s = selection) {
+            is Selection.OfText -> edit { ProjectOps.updateText(it, s.id) { t -> t.copy(anim = anim) } }
+            is Selection.OfSticker -> edit { ProjectOps.updateSticker(it, s.id) { t -> t.copy(anim = anim) } }
+            else -> {}
+        }
+    }
+
+    fun setLayerOpacity(v: Float) {
+        val o = v.coerceIn(0.1f, 1f)
+        when (val s = selection) {
+            is Selection.OfText -> edit("op:${s.id}") { ProjectOps.updateText(it, s.id) { t -> t.copy(opacity = o) } }
+            is Selection.OfSticker -> edit("op:${s.id}") { ProjectOps.updateSticker(it, s.id) { t -> t.copy(opacity = o) } }
+            else -> {}
+        }
+    }
+
     // ---- media import ------------------------------------------------------------------------
 
     fun importMedia(uris: List<Uri>) {
@@ -316,7 +404,7 @@ class EditorViewModel(
             try {
                 val clips = app.importer.importVisual(projectId, uris)
                 val after = (selection as? Selection.OfClip)?.id
-                edit { Templates.applyOnFirstImport(ProjectOps.insertClipsAfter(it, after, clips), it.isEmpty) }
+                edit { ProjectOps.insertClipsAfter(it, after, clips) }
                 _messages.tryEmit("Added ${clips.size} clip${if (clips.size > 1) "s" else ""}")
             } catch (e: Exception) {
                 _messages.tryEmit(e.message ?: "Import failed")
@@ -331,7 +419,7 @@ class EditorViewModel(
                 val target = repo.newMediaFile(projectId, "mp4")
                 withContext(Dispatchers.IO) { file.copyTo(target, overwrite = true); file.delete() }
                 val clip = withContext(Dispatchers.IO) { app.importer.clipFromFile(target, isImage = false) }
-                edit { Templates.applyOnFirstImport(ProjectOps.appendClips(it, listOf(clip)), it.isEmpty) }
+                edit { ProjectOps.appendClips(it, listOf(clip)) }
             } catch (e: Exception) {
                 _messages.tryEmit(e.message ?: "Could not add the recording")
             } finally { busy = null }

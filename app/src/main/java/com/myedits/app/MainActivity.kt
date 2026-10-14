@@ -58,6 +58,13 @@ class MainActivity : ComponentActivity() {
         val demo = intent.getBooleanExtra("seed_demo", false)
         val seedSpeed = intent.getFloatExtra("seed_speed", 1f)
         val c = container
+        intent.getStringExtra("seed_template")?.let { id ->
+            intent.removeExtra("seed_template")
+            com.myedits.app.data.Templates.byId(id)?.let { t ->
+                androidx.lifecycle.ViewModelProvider(this, HomeViewModel.Factory(container))[HomeViewModel::class.java].createFromTemplate(uris, t)
+                return
+            }
+        }
         val decorate: ((com.myedits.app.data.Project) -> com.myedits.app.data.Project)? = if (seedSpeed != 1f) { p ->
             com.myedits.app.engine.ProjectOps.updateAllClips(p) { it.copy(speed = seedSpeed) }
         } else if (!demo) null else { p ->

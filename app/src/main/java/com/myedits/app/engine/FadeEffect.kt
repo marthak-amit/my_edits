@@ -21,9 +21,16 @@ object FadeMath {
  * fades are right regardless of how individual items are offset inside the pipeline.
  */
 @UnstableApi
-class FadeEffect(private val segments: List<FadeSegment>) : RgbMatrix {
+class FadeEffect(
+    private val segments: List<FadeSegment>,
+    private val transitions: List<TransitionSegment> = emptyList(),
+) : RgbMatrix {
     override fun getMatrix(presentationTimeUs: Long, useHdr: Boolean): FloatArray {
-        val g = FadeMath.gain(segments, presentationTimeUs)
-        return if (g >= 0.999f) ColorMath.IDENTITY else ColorMath.gain(g)
+        val fade = FadeMath.gain(segments, presentationTimeUs)
+        val (dip, white) = MotionMath.colorAt(presentationTimeUs, transitions)
+        val g = fade * dip
+        if (g >= 0.999f && white <= 0.001f) return ColorMath.IDENTITY
+        // out = in * g * (1 - white) + white
+        return ColorMath.multiply(ColorMath.offsetRgb(white, white, white), ColorMath.gain(g * (1f - white)))
     }
 }

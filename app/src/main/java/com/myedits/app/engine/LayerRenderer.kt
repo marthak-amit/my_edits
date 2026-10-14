@@ -99,6 +99,29 @@ object LayerRenderer {
         }
     }
 
+    /** Dark corners. [strength] 0..1. Transparent in the middle so it can sit on top of the video. */
+    fun vignette(w: Int, h: Int, strength: Float): Bitmap {
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val radius = kotlin.math.hypot(w / 2f, h / 2f)
+        val edge = Color.argb((255 * (0.15f + 0.8f * strength.coerceIn(0f, 1f))).toInt().coerceIn(0, 255), 0, 0, 0)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(w / 2f, h / 2f, radius, intArrayOf(0x00000000, 0x00000000, edge), floatArrayOf(0f, 0.42f, 1f), Shader.TileMode.CLAMP)
+        }
+        Canvas(bmp).drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+        return bmp
+    }
+
+    /** Cinema bars along the top and bottom edge. */
+    fun bars(w: Int, h: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val band = h * BARS_FRACTION
+        val paint = Paint().apply { color = Color.BLACK }
+        Canvas(bmp).apply { drawRect(0f, 0f, w.toFloat(), band, paint); drawRect(0f, h - band, w.toFloat(), h.toFloat(), paint) }
+        return bmp
+    }
+
+    const val BARS_FRACTION = 0.115f
+
     /** Decodes [path] so that its longest side is about [maxSide] pixels. */
     fun loadScaled(path: String, maxSide: Int): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

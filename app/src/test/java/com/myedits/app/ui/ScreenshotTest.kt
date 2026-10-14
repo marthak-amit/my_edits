@@ -108,7 +108,7 @@ class ScreenshotTest {
         home(); click("tab_IDEAS"); rule.waitForTag("ideas_list"); shot("04_home_ideas")
     }
 
-    @Test fun home_05_inspiration() { home(); click("tab_INSPIRATION"); rule.waitForTag("inspiration_list"); shot("05_home_inspiration") }
+    @Test fun home_05_inspiration() { home(); click("tab_TEMPLATES"); rule.waitForTag("inspiration_list"); shot("05_home_inspiration") }
 
     @Test fun home_06_insights() {
         TestData.project("Summer trip", n = 3); TestData.project("Birthday reel", n = 2)

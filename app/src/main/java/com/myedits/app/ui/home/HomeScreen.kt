@@ -48,7 +48,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
-enum class HomeTab(val label: String) { PROJECTS("Projects"), IDEAS("Ideas"), INSPIRATION("Inspiration"), INSIGHTS("Insights") }
+enum class HomeTab(val label: String) { PROJECTS("Projects"), TEMPLATES("Templates"), IDEAS("Ideas"), INSIGHTS("Insights") }
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,7 +58,8 @@ fun HomeScreen(onOpenProject: (id: String, camera: Boolean) -> Unit, onSettings:
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.Factory(app))
     var tab by rememberSaveable { mutableStateOf(HomeTab.PROJECTS) }
     var showCreate by remember { mutableStateOf(false) }
-    var pendingTemplate by remember { mutableStateOf("") }
+    var chosenTemplate by remember { mutableStateOf<Template?>(null) }
+    var pendingTemplate by remember { mutableStateOf<Template?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
@@ -66,10 +67,14 @@ fun HomeScreen(onOpenProject: (id: String, camera: Boolean) -> Unit, onSettings:
     // Coming back from the editor: refresh thumbnails, names and stats.
     LaunchedEffect(Unit) { vm.refresh() }
 
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { uris -> vm.createFromUris(uris, pendingTemplate); pendingTemplate = "" }
-    fun startFromGallery(template: String = "") {
-        pendingTemplate = template
-        pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { uris -> vm.createFromUris(uris) }
+    val pickForTemplate = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia((pendingTemplate?.slotCount ?: 2).coerceIn(2, 30))) { uris ->
+        pendingTemplate?.let { vm.createFromTemplate(uris, it) }; pendingTemplate = null
+    }
+    fun startFromGallery() = pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+    fun startTemplate(t: Template) {
+        pendingTemplate = t
+        pickForTemplate.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black).testTag("home_screen")) {
@@ -80,14 +85,14 @@ fun HomeScreen(onOpenProject: (id: String, camera: Boolean) -> Unit, onSettings:
             }
             TabRow(tab)  { tab = it }
             when (tab) {
-                HomeTab.PROJECTS -> ProjectsTab(vm, onOpenProject, onCreate = { showCreate = true })
+                HomeTab.PROJECTS -> ProjectsTab(vm, onOpenProject, onPickTemplate = { chosenTemplate = it }, onSeeAllTemplates = { tab = HomeTab.TEMPLATES })
                 HomeTab.IDEAS -> IdeasTab(vm, onStart = { text -> vm.createBlank(name = text.take(40)) })
-                HomeTab.INSPIRATION -> InspirationTab(onUse = { t -> pendingTemplate = t.id; showCreate = true })
+                HomeTab.TEMPLATES -> TemplatesTab(onPick = { chosenTemplate = it })
                 HomeTab.INSIGHTS -> InsightsTab(vm)
             }
         }
 
-        if (tab == HomeTab.PROJECTS || tab == HomeTab.INSPIRATION) {
+        if (tab == HomeTab.PROJECTS || tab == HomeTab.TEMPLATES) {
             Box(
                 Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 20.dp)
                     .clip(CircleShape).background(EditsColors.Brand).clickable { showCreate = true }
@@ -111,16 +116,22 @@ fun HomeScreen(onOpenProject: (id: String, camera: Boolean) -> Unit, onSettings:
         }
     }
 
+    TemplateSheetHost(chosenTemplate, onDismiss = { chosenTemplate = null }, onUse = { t -> chosenTemplate = null; startTemplate(t) })
     if (showCreate) {
-        ModalBottomSheet(onDismissRequest = { showCreate = false; pendingTemplate = "" }, containerColor = EditsColors.Surface, contentColor = Color.White, modifier = Modifier.testTag("create_sheet")) {
+        ModalBottomSheet(onDismissRequest = { showCreate = false }, containerColor = EditsColors.Surface, contentColor = Color.White, modifier = Modifier.testTag("create_sheet")) {
             Column(Modifier.fillMaxWidth().tagsAsResourceIds().padding(horizontal = 16.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (pendingTemplate.isEmpty()) "Create new" else "Start with “${Templates.byId(pendingTemplate)?.title}”", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-                CreateRow(Icons.Filled.PhotoLibrary, "From gallery", "Pick videos and photos", "create_gallery") { showCreate = false; startFromGallery(pendingTemplate) }
-                CreateRow(Icons.Filled.Videocam, "Record", "Shoot a clip with the camera", "create_camera") { showCreate = false; vm.createBlank(template = pendingTemplate, camera = true); pendingTemplate = "" }
-                CreateRow(Icons.Filled.NoteAdd, "Blank project", "Add media later", "create_blank") { showCreate = false; vm.createBlank(template = pendingTemplate); pendingTemplate = "" }
+                Text("Create new", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+                CreateRow(Icons.Filled.PhotoLibrary, "From gallery", "Pick videos and photos", "create_gallery") { showCreate = false; startFromGallery() }
+                CreateRow(Icons.Filled.Videocam, "Record", "Shoot a clip with the camera", "create_camera") { showCreate = false; vm.createBlank(camera = true) }
+                CreateRow(Icons.Filled.NoteAdd, "Blank project", "Add media later", "create_blank") { showCreate = false; vm.createBlank() }
             }
         }
     }
+}
+
+@Composable
+private fun TemplateSheetHost(chosen: Template?, onDismiss: () -> Unit, onUse: (Template) -> Unit) {
+    chosen?.let { t -> TemplateSheet(t, onDismiss) { onUse(t) } }
 }
 
 @Composable
@@ -154,7 +165,7 @@ private fun TabRow(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProjectsTab(vm: HomeViewModel, onOpen: (String, Boolean) -> Unit, onCreate: () -> Unit) {
+private fun ProjectsTab(vm: HomeViewModel, onOpen: (String, Boolean) -> Unit, onPickTemplate: (Template) -> Unit, onSeeAllTemplates: () -> Unit) {
     var menuFor by remember { mutableStateOf<Project?>(null) }
     var renameFor by remember { mutableStateOf<Project?>(null) }
     var deleteFor by remember { mutableStateOf<Project?>(null) }
@@ -162,27 +173,34 @@ private fun ProjectsTab(vm: HomeViewModel, onOpen: (String, Boolean) -> Unit, on
 
     if (vm.loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = EditsColors.Blue) }; return }
     if (vm.projects.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            EmptyState("🎬", "No projects yet", "Create your first video. Everything you edit is saved automatically as a draft.", Modifier.testTag("projects_empty"))
+        Column(Modifier.fillMaxSize()) {
+            Spacer(Modifier.height(12.dp))
+            TemplateRail(onPickTemplate, onSeeAllTemplates)
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                EmptyState("🎬", "No projects yet", "Create your first video. Everything you edit is saved automatically as a draft.", Modifier.testTag("projects_empty"))
+            }
         }
         return
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("${vm.projects.size} project${if (vm.projects.size == 1) "" else "s"}", color = EditsColors.TextDim, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            Box {
-                TextButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("sort_button")) {
-                    Icon(Icons.Filled.SwapVert, null, tint = Color.White, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(vm.sort.label, color = Color.White)
-                }
-                DropdownMenu(sortMenu, { sortMenu = false }, containerColor = EditsColors.Surface2) {
-                    SortMode.entries.forEach { m -> DropdownMenuItem(text = { Text(m.label, color = Color.White) }, onClick = { vm.sort = m; sortMenu = false }, modifier = Modifier.testTag("sort_${m.name}")) }
-                }
-            }
-        }
         LazyVerticalGrid(
             GridCells.Fixed(2), Modifier.fillMaxSize().testTag("projects_grid"),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 110.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 110.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item(key = "template_rail", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) { TemplateRail(onPickTemplate, onSeeAllTemplates, edge = 4.dp) }
+            item(key = "sort_row", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${vm.projects.size} project${if (vm.projects.size == 1) "" else "s"}", color = EditsColors.TextDim, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Box {
+                    TextButton(onClick = { sortMenu = true }, modifier = Modifier.testTag("sort_button")) {
+                        Icon(Icons.Filled.SwapVert, null, tint = Color.White, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(vm.sort.label, color = Color.White)
+                    }
+                    DropdownMenu(sortMenu, { sortMenu = false }, containerColor = EditsColors.Surface2) {
+                        SortMode.entries.forEach { m -> DropdownMenuItem(text = { Text(m.label, color = Color.White) }, onClick = { vm.sort = m; sortMenu = false }, modifier = Modifier.testTag("sort_${m.name}")) }
+                    }
+                }
+            }
+            }
             items(vm.sortedProjects, key = { it.id }) { p ->
                 ProjectCard(p, vm, onClick = { onOpen(p.id, false) }, onMenu = { menuFor = p })
             }
@@ -288,31 +306,6 @@ private fun IdeasTab(vm: HomeViewModel, onStart: (String) -> Unit) {
         }
     }
 }
-
-// ---- inspiration --------------------------------------------------------------------------------
-
-@Composable
-private fun InspirationTab(onUse: (Template) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().testTag("inspiration_list"), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("Start from a look. The preset is applied to the first clips you add — change anything afterwards.", color = EditsColors.TextDim, style = MaterialTheme.typography.bodyMedium) }
-        items(Templates.all, key = { it.id }) { t ->
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(EditsColors.Surface2).padding(16.dp).testTag("template_${t.id}"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(EditsColors.Surface3), contentAlignment = Alignment.Center) { Text(t.emoji, fontSize = 26.sp) }
-                    Column(Modifier.weight(1f)) {
-                        Text(t.title, color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("${t.aspect.label} · ${FilterLabel(t.filter)}", color = EditsColors.TextDim, style = MaterialTheme.typography.bodySmall)
-                    }
-                    PrimaryButton("Use", { onUse(t) }, tag = "template_use_${t.id}")
-                }
-                Text(t.description, color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                Text("💡 ${t.tip}", color = EditsColors.TextDim, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
-}
-
-private fun FilterLabel(id: String) = com.myedits.app.engine.FilterPresets.byId(id).label.let { if (id == "none") "No filter" else "$it look" }
 
 // ---- insights -----------------------------------------------------------------------------------
 
