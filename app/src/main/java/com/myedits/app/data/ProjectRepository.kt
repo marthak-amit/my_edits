@@ -71,6 +71,17 @@ class ProjectRepository(private val root: File) {
         return copy
     }
 
+    /** Writes the project's cover image (first clip at its in-point). Safe to call from a background thread. */
+    suspend fun writeCover(p: Project) {
+        val c = p.clips.firstOrNull() ?: return
+        runCatching {
+            val frame = com.myedits.app.util.Thumbs.frame(c.path, c.isImage, c.inMs, 360) ?: return
+            val tmp = File(thumbFile(p.id).parentFile, "thumb.tmp")
+            tmp.outputStream().use { frame.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, it) }
+            tmp.renameTo(thumbFile(p.id))
+        }
+    }
+
     /** Names media files uniquely inside the project's media folder. */
     fun newMediaFile(projectId: String, extension: String): File =
         File(mediaDir(projectId), "${System.currentTimeMillis()}_${(0..9999).random()}.$extension")

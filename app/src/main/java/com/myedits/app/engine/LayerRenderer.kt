@@ -81,9 +81,12 @@ object LayerRenderer {
         return when (s.kind) {
             StickerKind.EMOJI -> {
                 val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = target * 0.82f }
+                // Some emoji glyphs are wider than tall; shrink until the glyph fits the requested square.
+                val firstW = paint.measureText(s.emoji).coerceAtLeast(1f)
+                if (firstW > target) paint.textSize = paint.textSize * target / firstW
                 val fm = paint.fontMetrics
                 val textW = paint.measureText(s.emoji).coerceAtLeast(1f)
-                val side = max(target, textW.roundToInt())
+                val side = target
                 val bmp = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
                 val c = Canvas(bmp)
                 val baseline = side / 2f - (fm.ascent + fm.descent) / 2f

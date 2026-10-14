@@ -80,7 +80,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                 val clips = app.importer.importVisual(p.id, uris)
                 var withClips = ProjectOps.appendClips(p, clips)
                 withClips = Templates.applyOnFirstImport(withClips, true)
-                withContext(Dispatchers.IO) { app.repository.save(withClips) }
+                withContext(Dispatchers.IO) { app.repository.save(withClips); app.repository.writeCover(withClips) }
                 refresh()
                 _open.emit(p.id to false)
             } catch (e: Exception) {

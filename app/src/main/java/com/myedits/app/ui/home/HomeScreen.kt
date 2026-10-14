@@ -113,7 +113,7 @@ fun HomeScreen(onOpenProject: (id: String, camera: Boolean) -> Unit, onSettings:
 
     if (showCreate) {
         ModalBottomSheet(onDismissRequest = { showCreate = false; pendingTemplate = "" }, containerColor = EditsColors.Surface, contentColor = Color.White, modifier = Modifier.testTag("create_sheet")) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().tagsAsResourceIds().padding(horizontal = 16.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (pendingTemplate.isEmpty()) "Create new" else "Start with “${Templates.byId(pendingTemplate)?.title}”", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
                 CreateRow(Icons.Filled.PhotoLibrary, "From gallery", "Pick videos and photos", "create_gallery") { showCreate = false; startFromGallery(pendingTemplate) }
                 CreateRow(Icons.Filled.Videocam, "Record", "Shoot a clip with the camera", "create_camera") { showCreate = false; vm.createBlank(template = pendingTemplate, camera = true); pendingTemplate = "" }
@@ -191,7 +191,7 @@ private fun ProjectsTab(vm: HomeViewModel, onOpen: (String, Boolean) -> Unit, on
 
     menuFor?.let { p ->
         ModalBottomSheet(onDismissRequest = { menuFor = null }, containerColor = EditsColors.Surface, contentColor = Color.White, modifier = Modifier.testTag("project_menu")) {
-            Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 28.dp)) {
+            Column(Modifier.tagsAsResourceIds().padding(horizontal = 16.dp).padding(bottom = 28.dp)) {
                 Text(p.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 MenuRow(Icons.Filled.Edit, "Rename", "menu_rename") { menuFor = null; renameFor = p }
                 MenuRow(Icons.Filled.ContentCopy, "Duplicate", "menu_duplicate") { menuFor = null; vm.duplicate(p.id) }

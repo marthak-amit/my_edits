@@ -78,6 +78,15 @@ fun EditorScreen(
 
     fun leave() { vm.pause(); vm.flushSave(); onExit() }
 
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) { if (vm.recording) vm.stopRecording(); vm.pause(); vm.flushSave() }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     BackHandler {
         when {
             showExport || exporting -> { if (exportState !is ExportUi.Running) { vm.dismissExport(); showExport = false } }

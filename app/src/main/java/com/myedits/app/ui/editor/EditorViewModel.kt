@@ -163,17 +163,13 @@ class EditorViewModel(
     private suspend fun saveNow() = withContext(Dispatchers.IO) {
         val p = project
         runCatching { repo.save(p) }
-        p.clips.firstOrNull()?.let { c ->
-            runCatching {
-                val frame = Thumbs.frame(c.path, c.isImage, c.inMs, 360)
-                frame?.let { bmp -> repo.thumbFile(p.id).outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, it) } }
-            }
-        }
+        repo.writeCover(p)
     }
 
     fun flushSave() {
         saveJob?.cancel()
-        runBlocking(Dispatchers.IO) { runCatching { repo.save(project) } }
+        val p = project
+        runBlocking(Dispatchers.IO) { runCatching { repo.save(p) }; if (!repo.thumbFile(p.id).exists()) repo.writeCover(p) }
     }
 
     fun rename(name: String) = edit { it.copy(name = name.trim().ifEmpty { it.name }) }
@@ -505,6 +501,7 @@ class EditorViewModel(
     fun startExport(shortSide: Int, fps: Int, saveToGallery: Boolean) {
         if (_export.value is ExportUi.Running) return
         pause()
+        preview.suspend() // free the preview's codecs for the encoder
         _export.value = ExportUi.Running(0f)
         exportJob = viewModelScope.launch {
             try {
@@ -512,7 +509,8 @@ class EditorViewModel(
                 val file = app.exporter.export(snapshot, shortSide, fps) { _export.value = ExportUi.Running(it) }
                 val uri = if (saveToGallery) runCatching { GallerySaver.save(app.context, file, snapshot.name) }.getOrNull() else null
                 if (saveToGallery && uri == null) _messages.tryEmit("Exported, but saving to the gallery failed")
-                edit { it.copy(exportCount = it.exportCount + 1) }
+                project = project.copy(exportCount = project.exportCount + 1, updatedAt = System.currentTimeMillis())
+                scheduleSave()
                 app.activity.record(ActivityLog.EXPORTED, snapshot.durationMs)
                 _export.value = ExportUi.Done(file, uri)
             } catch (e: CancellationException) {
@@ -524,8 +522,15 @@ class EditorViewModel(
         }
     }
 
-    fun cancelExport() { exportJob?.cancel(); _export.value = ExportUi.Idle }
-    fun dismissExport() { if (_export.value !is ExportUi.Running) _export.value = ExportUi.Idle }
+    fun cancelExport() { exportJob?.cancel(); _export.value = ExportUi.Idle; restorePreview() }
+    fun dismissExport() {
+        if (_export.value is ExportUi.Running) return
+        val wasShowingResult = _export.value !is ExportUi.Idle
+        _export.value = ExportUi.Idle
+        if (wasShowingResult) restorePreview()
+    }
+
+    private fun restorePreview() = preview.update(project, playheadMs)
 
     override fun onCleared() {
         runCatching { voice.cancel() }

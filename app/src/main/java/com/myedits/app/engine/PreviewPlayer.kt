@@ -2,6 +2,7 @@ package com.myedits.app.engine
 
 import android.content.Context
 import android.os.Looper
+import android.util.Log
 import android.view.SurfaceView
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -31,8 +32,13 @@ interface PreviewController {
     fun pause()
     fun seekTo(ms: Long)
     fun setScrubbing(on: Boolean)
+    /** Frees codecs (e.g. while exporting). The next [update] re-prepares the preview. */
+    fun suspend()
     fun release()
 }
+
+private const val TAG = "EditsPreview"
+private const val MAX_RETRIES = 2
 
 @UnstableApi
 class PreviewPlayer(context: Context) : PreviewController {
@@ -46,6 +52,9 @@ class PreviewPlayer(context: Context) : PreviewController {
     override val ended: StateFlow<Boolean> = _ended.asStateFlow()
 
     private var signature: Int? = null
+    private var lastProject: Project? = null
+    private var lastShortSide = 540
+    private var retries = 0
     private var durationMs = 0L
     private var pendingSeekMs: Long? = null
     private var resumeAfterPrepare = false
@@ -53,20 +62,44 @@ class PreviewPlayer(context: Context) : PreviewController {
     init {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { _playing.value = isPlaying }
+            override fun onRenderedFirstFrame() { Log.d(TAG, "first frame rendered") }
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) { Log.d(TAG, "video size ${videoSize.width}x${videoSize.height}") }
             override fun onPlaybackStateChanged(state: Int) {
+                Log.d(TAG, "state=" + when (state) { Player.STATE_IDLE -> "IDLE"; Player.STATE_BUFFERING -> "BUFFERING"; Player.STATE_READY -> "READY"; else -> "ENDED" })
                 _ended.value = state == Player.STATE_ENDED
                 if (state == Player.STATE_READY) {
+                    retries = 0
                     pendingSeekMs?.let { player.seekTo(it); pendingSeekMs = null }
                     if (resumeAfterPrepare) { player.play(); resumeAfterPrepare = false }
                 }
             }
             override fun onPlayerError(error: PlaybackException) {
+                Log.e(TAG, "player error", error)
+                // Transient decoder / GL failures are common on busy devices: rebuild the pipeline a couple of times
+                // before telling the user.
+                val p = lastProject
+                if (p != null && retries < MAX_RETRIES) {
+                    retries++
+                    val at = player.currentPosition
+                    signature = null
+                    player.stop()
+                    update(p, at, lastShortSide)
+                    return
+                }
                 _error.value = "Preview failed: ${error.errorCodeName}"
             }
         })
     }
 
-    override fun attach(surface: SurfaceView) = player.setVideoSurfaceView(surface)
+    override fun attach(surface: SurfaceView) {
+        Log.d(TAG, "attach surface valid=${surface.holder.surface.isValid}")
+        surface.holder.addCallback(object : android.view.SurfaceHolder.Callback {
+            override fun surfaceCreated(h: android.view.SurfaceHolder) { Log.d(TAG, "surfaceCreated") }
+            override fun surfaceChanged(h: android.view.SurfaceHolder, f: Int, w: Int, hh: Int) { Log.d(TAG, "surfaceChanged ${w}x$hh") }
+            override fun surfaceDestroyed(h: android.view.SurfaceHolder) { Log.d(TAG, "surfaceDestroyed") }
+        })
+        player.setVideoSurfaceView(surface)
+    }
     override fun detach(surface: SurfaceView) = player.clearVideoSurfaceView(surface)
 
     override val positionMs: Long get() = player.currentPosition
@@ -77,9 +110,12 @@ class PreviewPlayer(context: Context) : PreviewController {
 
     /** Re-targets the player at [p]. [positionMs] is where to resume after the rebuild. */
     override fun update(p: Project, positionMs: Long, shortSide: Int) {
+        lastProject = p
+        lastShortSide = shortSide
         val sig = signatureOf(p)
         if (sig == signature) return
         signature = sig
+        if (retries > 0 && player.playbackState == Player.STATE_READY) retries = 0
         _error.value = null
         durationMs = p.durationMs
         if (p.clips.isEmpty()) { player.stop(); return }
@@ -87,11 +123,16 @@ class PreviewPlayer(context: Context) : PreviewController {
         val (w, h) = CompositionBuilder.canvasSize(p.aspect, shortSide)
         runCatching {
             val comp = CompositionBuilder.build(p, RenderSpec(w, h, includeOverlays = false))
+            Log.d(TAG, "setComposition ${w}x$h sequences=${comp.sequences.size} items=${comp.sequences.sumOf { it.editedMediaItems.size }}")
             player.setComposition(comp)
             pendingSeekMs = positionMs.coerceIn(0L, (durationMs - 1).coerceAtLeast(0L))
             resumeAfterPrepare = wasPlaying
             player.prepare()
-        }.onFailure { _error.value = "Preview failed: ${it.message}" }
+            Log.d(TAG, "prepare() called, state=${player.playbackState}")
+        }.onFailure {
+            Log.e(TAG, "preview setup failed", it)
+            _error.value = "Preview failed: ${it.message}"
+        }
     }
 
     override fun play() {
@@ -107,6 +148,12 @@ class PreviewPlayer(context: Context) : PreviewController {
     }
 
     override fun setScrubbing(on: Boolean) = runCatching { player.setScrubbingModeEnabled(on) }.let { }
+
+    override fun suspend() {
+        resumeAfterPrepare = false
+        signature = null
+        runCatching { player.pause(); player.stop() }
+    }
 
     override fun release() { runCatching { player.release() } }
 }

@@ -39,6 +39,8 @@ class FakePreview : PreviewController {
     override fun pause() { _playing.value = false }
     override fun seekTo(ms: Long) { positionMs = ms }
     override fun setScrubbing(on: Boolean) {}
+    var suspended = 0
+    override fun suspend() { suspended++ }
     override fun release() { released = true }
 }
 

@@ -91,9 +91,23 @@ object CompositionBuilder {
 
     private fun uri(path: String): Uri = Uri.fromFile(File(path))
 
+    fun imageMimeType(path: String): String = when (path.substringAfterLast('.', "").lowercase()) {
+        "png" -> "image/png"
+        "webp" -> "image/webp"
+        "heic" -> "image/heic"
+        "heif" -> "image/heif"
+        "gif" -> "image/gif"
+        "bmp" -> "image/bmp"
+        else -> "image/jpeg"
+    }
+
     fun clipItem(c: Clip, spec: RenderSpec): EditedMediaItem {
         val mediaItem = MediaItem.Builder().setUri(uri(c.path)).apply {
-            if (!c.isImage) {
+            if (c.isImage) {
+                // Without an image MIME type Media3 treats the file as video and no extractor can read it.
+                setMimeType(imageMimeType(c.path))
+                setImageDurationMs(c.durationMs)
+            } else {
                 setClippingConfiguration(
                     MediaItem.ClippingConfiguration.Builder()
                         .setStartPositionMs(c.inMs)
@@ -137,7 +151,10 @@ object CompositionBuilder {
 
         return EditedMediaItem.Builder(mediaItem)
             .apply {
+                // CompositionPlayer needs every item's duration up front: for photos it is the display time,
+                // for videos the length of the *source* file (the clipping configuration trims it).
                 if (c.isImage) setDurationUs(c.durationMs * 1000).setFrameRate(30)
+                else setDurationUs(c.sourceDurationMs * 1000)
             }
             .setEffects(Effects(audioProcessors, videoEffects))
             .build()
@@ -153,6 +170,7 @@ object CompositionBuilder {
             ).build(),
         )
             .setRemoveVideo(true)
+            .setDurationUs(a.sourceDurationMs * 1000)
             .setEffects(
                 Effects(
                     listOf(GainAudioProcessor(a.volume, a.fadeInMs, minOf(a.fadeOutMs, durationMs), durationMs)),
@@ -163,6 +181,8 @@ object CompositionBuilder {
         return EditedMediaItemSequence.Builder().apply {
             if (a.startMs > 0) addGap(a.startMs * 1000)
             addItem(item)
+            // Required by Media3 whenever a sequence starts with a gap (audio that begins after 0:00).
+            experimentalSetForceAudioTrack(true)
         }.build()
     }
 

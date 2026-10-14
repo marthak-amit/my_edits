@@ -20,6 +20,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -154,3 +156,8 @@ fun EmptyState(emoji: String, title: String, body: String, modifier: Modifier = 
         if (action != null) { Spacer(Modifier.height(8.dp)); action() }
     }
 }
+
+
+/** Exposes Compose test tags as resource ids so UI automation (uiautomator) can drive sheets and dialogs too. */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+fun Modifier.tagsAsResourceIds(): Modifier = this.semantics { testTagsAsResourceId = true }

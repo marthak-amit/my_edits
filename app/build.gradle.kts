@@ -35,7 +35,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            // Falls back to the debug key if release.keystore hasn't been generated (scripts/make-keystore.sh).
+            signingConfig = if (rootProject.file("release.keystore").exists()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
         debug {
             applicationIdSuffix = ".debug"

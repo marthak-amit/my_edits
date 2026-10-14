@@ -67,6 +67,8 @@ class GainAudioProcessor(
                 out.putShort((s * g).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort())
             }
         }
+        // Any trailing partial frame is passed through untouched so the input is always fully consumed.
+        while (inp.hasRemaining()) out.put(inp.get())
         framesSeen += frames
         out.flip()
     }

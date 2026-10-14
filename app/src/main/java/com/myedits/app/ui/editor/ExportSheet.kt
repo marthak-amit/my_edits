@@ -44,7 +44,7 @@ fun ExportSheet(vm: EditorViewModel, onClose: () -> Unit, onSettingsChanged: (co
         sheetState = sheet, containerColor = EditsColors.Surface, contentColor = Color.White,
         modifier = Modifier.testTag("export_sheet"),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().tagsAsResourceIds().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             when (val s = state) {
                 ExportUi.Idle -> {
                     Text("Export", style = MaterialTheme.typography.titleLarge)
