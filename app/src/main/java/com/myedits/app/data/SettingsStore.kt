@@ -56,3 +56,31 @@ class IdeasStore(private val prefs: SharedPreferences) {
         prefs.edit().putString("items", raw).apply()
     }
 }
+
+/** What the user did and when; feeds the Insights tab. Stored as a compact JSON array. */
+data class ActivityEvent(val type: String, val atMs: Long, val value: Long = 0L)
+
+class ActivityLog(private val prefs: android.content.SharedPreferences) {
+    @kotlinx.serialization.Serializable
+    private data class Row(val t: String, val at: Long, val v: Long = 0L)
+
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+    fun load(): List<ActivityEvent> = runCatching {
+        json.decodeFromString<List<Row>>(prefs.getString("events", "[]") ?: "[]").map { ActivityEvent(it.t, it.at, it.v) }
+    }.getOrDefault(emptyList())
+
+    fun record(type: String, value: Long = 0L, now: Long = System.currentTimeMillis()) {
+        val all = (load() + ActivityEvent(type, now, value)).takeLast(500)
+        prefs.edit().putString(
+            "events",
+            json.encodeToString(kotlinx.serialization.builtins.ListSerializer(Row.serializer()), all.map { Row(it.type, it.atMs, it.value) }),
+        ).apply()
+    }
+
+    companion object {
+        const val CREATED = "created"
+        const val EXPORTED = "exported"
+        const val RECORDED = "recorded"
+    }
+}

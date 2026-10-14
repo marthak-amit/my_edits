@@ -158,6 +158,8 @@ data class Project(
     val stickers: List<StickerLayer> = emptyList(),
     val audios: List<AudioTrack> = emptyList(),
     val exportCount: Int = 0,
+    /** Inspiration recipe applied when the first media arrives; cleared afterwards. */
+    val template: String = "",
 ) {
     val durationMs: Long get() = clips.sumOf { it.durationMs }
     val isEmpty: Boolean get() = clips.isEmpty()
