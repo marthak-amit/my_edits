@@ -80,7 +80,10 @@ fun HomeScreen(onOpenProject: (id: String, camera: Boolean) -> Unit, onSettings:
     Box(Modifier.fillMaxSize().background(Color.Black).testTag("home_screen")) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Edits", style = MaterialTheme.typography.headlineLarge, color = Color.White, modifier = Modifier.weight(1f))
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(EditsColors.Brand), contentAlignment = Alignment.Center) { Icon(Icons.Filled.ContentCut, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
+                    Text("Edits", style = MaterialTheme.typography.headlineLarge.copy(brush = EditsColors.Brand), modifier = Modifier.testTag("home_title"))
+                }
                 IconButton(onClick = onSettings, modifier = Modifier.testTag("home_settings")) { Icon(Icons.Filled.Settings, "Settings", tint = Color.White) }
             }
             TabRow(tab)  { tab = it }
@@ -153,7 +156,7 @@ private fun TabRow(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
             Column(Modifier.clip(RoundedCornerShape(8.dp)).clickable { onSelect(t) }.padding(horizontal = 10.dp, vertical = 8.dp).testTag("tab_${t.name}"), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(t.label, color = if (sel) Color.White else EditsColors.TextDim, fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium, fontSize = 15.sp)
                 Spacer(Modifier.height(4.dp))
-                Box(Modifier.height(2.dp).width(if (sel) 28.dp else 0.dp).background(Color.White))
+                Box(Modifier.height(3.dp).width(if (sel) 28.dp else 0.dp).clip(CircleShape).background(EditsColors.Brand))
             }
         }
     }
@@ -259,6 +262,8 @@ private fun ProjectCard(p: Project, vm: HomeViewModel, onClick: () -> Unit, onMe
             else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF2A2A30), Color(0xFF16161A)))), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Movie, null, tint = EditsColors.TextDim, modifier = Modifier.size(36.dp)) }
             Box(Modifier.fillMaxWidth().height(56.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000)))))
             Text(formatDuration(p.durationMs), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+            Text("${p.aspect.label} · ${p.clips.size} clip${if (p.clips.size == 1) "" else "s"}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x66000000)).padding(horizontal = 6.dp, vertical = 2.dp))
             IconButton(onClick = onMenu, modifier = Modifier.align(Alignment.TopEnd).size(40.dp).testTag("menu_${p.id}")) {
                 Icon(Icons.Filled.MoreVert, "More", tint = Color.White, modifier = Modifier.background(Color(0x66000000), CircleShape).padding(4.dp))
             }

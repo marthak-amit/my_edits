@@ -114,18 +114,18 @@ private typealias LazyRowScopeContent = @Composable RowScope.() -> Unit
 private fun RootToolbar(vm: EditorViewModel, a: EditorActions) {
     val has = !vm.project.isEmpty
     ToolRow(Modifier.testTag("toolbar_root")) {
-        ToolButton(Icons.Filled.AddPhotoAlternate, "Add", a.pickMedia, tag = "tool_add")
-        ToolButton(Icons.Filled.Videocam, "Camera", a.openCamera, tag = "tool_camera")
+        ToolButton(Icons.Filled.AddPhotoAlternate, "Add", a.pickMedia, tint = EditsColors.Blue, tag = "tool_add")
+        ToolButton(Icons.Filled.Videocam, "Camera", a.openCamera, tint = EditsColors.Red, tag = "tool_camera")
         ToolButton(Icons.Filled.ContentCut, "Edit", { vm.selectClipAtPlayhead() }, enabled = has, tag = "tool_edit")
-        ToolButton(Icons.Filled.MusicNote, "Audio", { vm.openPanel(Panel.AUDIO) }, enabled = has, tag = "tool_audio")
-        ToolButton(Icons.Filled.TextFields, "Text", { vm.addText() }, enabled = has, tag = "tool_text")
-        ToolButton(Icons.Filled.Subtitles, "Captions", { vm.openPanel(Panel.CAPTIONS) }, enabled = has, tag = "tool_captions")
-        ToolButton(Icons.Filled.EmojiEmotions, "Stickers", { vm.openPanel(Panel.STICKERS) }, enabled = has, tag = "tool_stickers")
-        ToolButton(Icons.Filled.PictureInPicture, "Overlay", a.pickOverlay, enabled = has, tag = "tool_overlay")
-        ToolButton(Icons.Filled.AutoAwesome, "Filters", { vm.selectClipAtPlayhead(); vm.openPanel(Panel.FILTER) }, enabled = has, tag = "tool_filters")
-        ToolButton(Icons.Filled.Tune, "Adjust", { vm.selectClipAtPlayhead(); vm.openPanel(Panel.ADJUST) }, enabled = has, tag = "tool_adjust")
-        ToolButton(Icons.Filled.Animation, "Effects", { vm.selectClipAtPlayhead(); vm.openPanel(Panel.EFFECTS) }, enabled = has, tag = "tool_effects")
-        ToolButton(Icons.Filled.AspectRatio, "Canvas", { vm.openPanel(Panel.CANVAS) }, enabled = has, tag = "tool_canvas")
+        ToolButton(Icons.Filled.MusicNote, "Audio", { vm.openPanel(Panel.AUDIO) }, enabled = has, tint = EditsColors.Pink, tag = "tool_audio")
+        ToolButton(Icons.Filled.TextFields, "Text", { vm.addText() }, enabled = has, tint = Color(0xFFFFD60A), tag = "tool_text")
+        ToolButton(Icons.Filled.Subtitles, "Captions", { vm.openPanel(Panel.CAPTIONS) }, enabled = has, tint = Color(0xFF64D2FF), tag = "tool_captions")
+        ToolButton(Icons.Filled.EmojiEmotions, "Stickers", { vm.openPanel(Panel.STICKERS) }, enabled = has, tint = EditsColors.Orange, tag = "tool_stickers")
+        ToolButton(Icons.Filled.PictureInPicture, "Overlay", a.pickOverlay, enabled = has, tint = EditsColors.Purple, tag = "tool_overlay")
+        ToolButton(Icons.Filled.AutoAwesome, "Filters", { vm.selectClipAtPlayhead(); vm.openPanel(Panel.FILTER) }, enabled = has, tint = Color(0xFF63E6BE), tag = "tool_filters")
+        ToolButton(Icons.Filled.Tune, "Adjust", { vm.selectClipAtPlayhead(); vm.openPanel(Panel.ADJUST) }, enabled = has, tint = Color(0xFF5AC8FA), tag = "tool_adjust")
+        ToolButton(Icons.Filled.Animation, "Effects", { vm.selectClipAtPlayhead(); vm.openPanel(Panel.EFFECTS) }, enabled = has, tint = Color(0xFFBF5AF2), tag = "tool_effects")
+        ToolButton(Icons.Filled.AspectRatio, "Canvas", { vm.openPanel(Panel.CANVAS) }, enabled = has, tint = Color(0xFFAEAEB2), tag = "tool_canvas")
     }
 }
 
@@ -140,14 +140,14 @@ private fun ClipToolbar(vm: EditorViewModel) {
         if (c.isImage) ToolButton(Icons.Filled.Timer, "Duration", { vm.openPanel(Panel.SPEED) }, tag = "tool_speed")
         else ToolButton(Icons.Filled.Speed, "Speed", { vm.openPanel(Panel.SPEED) }, tag = "tool_speed")
         if (!c.isImage) ToolButton(if (c.volume == 0f) Icons.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Volume", { vm.openPanel(Panel.VOLUME) }, tag = "tool_volume")
-        ToolButton(Icons.Filled.Gradient, "Fade", { vm.openPanel(Panel.FADE) }, tag = "tool_fade")
-        ToolButton(Icons.Filled.SwapHoriz, "Transition", { vm.openPanel(Panel.TRANSITION) }, selected = c.transition != Transition.NONE, tag = "tool_transition")
-        ToolButton(Icons.Filled.Animation, "Animate", { vm.openPanel(Panel.ANIMATE) }, selected = c.animation != ClipAnim.NONE, tag = "tool_animate")
-        ToolButton(Icons.Filled.AutoAwesome, "Filters", { vm.openPanel(Panel.FILTER) }, tag = "tool_filters")
-        ToolButton(Icons.Filled.Tune, "Adjust", { vm.openPanel(Panel.ADJUST) }, tag = "tool_adjust")
-        ToolButton(Icons.Filled.BlurOn, "Effects", { vm.openPanel(Panel.EFFECTS) }, selected = c.blur > 0f || c.vignette > 0f || c.bars, tag = "tool_effects")
-        ToolButton(Icons.Filled.Crop, "Position", { vm.openPanel(Panel.POSITION) }, tag = "tool_position")
-        ToolButton(Icons.Filled.AcUnit, "Freeze", { vm.freezeFrame() }, tag = "tool_freeze")
+        ToolButton(Icons.Filled.Gradient, "Fade", { vm.openPanel(Panel.FADE) }, tint = Color(0xFFAEAEB2), tag = "tool_fade")
+        ToolButton(Icons.Filled.SwapHoriz, "Transition", { vm.openPanel(Panel.TRANSITION) }, selected = c.transition != Transition.NONE, tint = Color(0xFFFF9F0A), tag = "tool_transition")
+        ToolButton(Icons.Filled.Animation, "Animate", { vm.openPanel(Panel.ANIMATE) }, selected = c.animation != ClipAnim.NONE, tint = Color(0xFFFF6482), tag = "tool_animate")
+        ToolButton(Icons.Filled.AutoAwesome, "Filters", { vm.openPanel(Panel.FILTER) }, tint = Color(0xFF63E6BE), tag = "tool_filters")
+        ToolButton(Icons.Filled.Tune, "Adjust", { vm.openPanel(Panel.ADJUST) }, tint = Color(0xFF5AC8FA), tag = "tool_adjust")
+        ToolButton(Icons.Filled.BlurOn, "Effects", { vm.openPanel(Panel.EFFECTS) }, selected = c.blur > 0f || c.vignette > 0f || c.bars, tint = Color(0xFFBF5AF2), tag = "tool_effects")
+        ToolButton(Icons.Filled.Crop, "Position", { vm.openPanel(Panel.POSITION) }, tint = Color(0xFF30D158), tag = "tool_position")
+        ToolButton(Icons.Filled.AcUnit, "Freeze", { vm.freezeFrame() }, tint = Color(0xFF64D2FF), tag = "tool_freeze")
         ToolButton(Icons.Filled.RotateRight, "Rotate", { vm.rotate() }, tag = "tool_rotate")
         ToolButton(Icons.Filled.Flip, "Flip", { vm.flipH() }, tag = "tool_flip")
         ToolButton(if (c.fit == FitMode.FIT) Icons.Filled.FitScreen else Icons.Filled.Crop, if (c.fit == FitMode.FIT) "Fit" else "Fill", { vm.toggleFit() }, tag = "tool_fit")
@@ -165,9 +165,9 @@ private fun ClipToolbar(vm: EditorViewModel) {
 private fun TextToolbar(vm: EditorViewModel) {
     ToolRow(Modifier.testTag("toolbar_text")) {
         ToolButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", { vm.select(Selection.None) }, tag = "tool_back")
-        ToolButton(Icons.Filled.Edit, "Edit", { vm.openPanel(Panel.TEXT_EDIT) }, tag = "tool_text_edit")
-        ToolButton(Icons.Filled.Palette, "Style", { vm.openPanel(Panel.TEXT_STYLE) }, tag = "tool_text_style")
-        ToolButton(Icons.Filled.Animation, "Animate", { vm.openPanel(Panel.LAYER_ANIM) }, tag = "tool_layer_anim")
+        ToolButton(Icons.Filled.Edit, "Edit", { vm.openPanel(Panel.TEXT_EDIT) }, tint = Color(0xFFFFD60A), tag = "tool_text_edit")
+        ToolButton(Icons.Filled.Palette, "Style", { vm.openPanel(Panel.TEXT_STYLE) }, tint = Color(0xFFBF5AF2), tag = "tool_text_style")
+        ToolButton(Icons.Filled.Animation, "Animate", { vm.openPanel(Panel.LAYER_ANIM) }, tint = Color(0xFFFF6482), tag = "tool_layer_anim")
         ToolButton(Icons.Filled.ContentCut, "Split", { vm.split() }, tag = "tool_split")
         ToolButton(Icons.Filled.ContentCopy, "Duplicate", { vm.duplicateSelected() }, tag = "tool_duplicate")
         ToolButton(Icons.Filled.Delete, "Delete", { vm.deleteSelected() }, tint = EditsColors.Red, tag = "tool_delete")
@@ -179,7 +179,7 @@ private fun TextToolbar(vm: EditorViewModel) {
 private fun StickerToolbar(vm: EditorViewModel) {
     ToolRow(Modifier.testTag("toolbar_sticker")) {
         ToolButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", { vm.select(Selection.None) }, tag = "tool_back")
-        ToolButton(Icons.Filled.Animation, "Animate", { vm.openPanel(Panel.LAYER_ANIM) }, tag = "tool_layer_anim")
+        ToolButton(Icons.Filled.Animation, "Animate", { vm.openPanel(Panel.LAYER_ANIM) }, tint = Color(0xFFFF6482), tag = "tool_layer_anim")
         ToolButton(Icons.Filled.ContentCopy, "Duplicate", { vm.duplicateSelected() }, tag = "tool_duplicate")
         ToolButton(Icons.Filled.Delete, "Delete", { vm.deleteSelected() }, tint = EditsColors.Red, tag = "tool_delete")
     }
@@ -190,9 +190,9 @@ private fun StickerToolbar(vm: EditorViewModel) {
 private fun AudioToolbar(vm: EditorViewModel) {
     ToolRow(Modifier.testTag("toolbar_audio")) {
         ToolButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", { vm.select(Selection.None) }, tag = "tool_back")
-        ToolButton(Icons.AutoMirrored.Filled.VolumeUp, "Volume", { vm.openPanel(Panel.VOLUME) }, tag = "tool_volume")
-        ToolButton(Icons.Filled.Gradient, "Fade", { vm.openPanel(Panel.FADE) }, tag = "tool_fade")
-        ToolButton(Icons.Filled.RecordVoiceOver, "Voice", { vm.openPanel(Panel.VOICE) }, tag = "tool_voice")
+        ToolButton(Icons.AutoMirrored.Filled.VolumeUp, "Volume", { vm.openPanel(Panel.VOLUME) }, tint = Color(0xFF32D74B), tag = "tool_volume")
+        ToolButton(Icons.Filled.Gradient, "Fade", { vm.openPanel(Panel.FADE) }, tint = Color(0xFFAEAEB2), tag = "tool_fade")
+        ToolButton(Icons.Filled.RecordVoiceOver, "Voice", { vm.openPanel(Panel.VOICE) }, tint = EditsColors.Pink, tag = "tool_voice")
         ToolButton(Icons.Filled.ContentCut, "Split", { vm.split() }, tag = "tool_split")
         ToolButton(Icons.Filled.ContentCopy, "Duplicate", { vm.duplicateSelected() }, tag = "tool_duplicate")
         ToolButton(Icons.Filled.Delete, "Delete", { vm.deleteSelected() }, tint = EditsColors.Red, tag = "tool_delete")

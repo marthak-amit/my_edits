@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -128,8 +129,8 @@ fun TemplateRail(onPick: (Template) -> Unit, onSeeAll: () -> Unit, edge: android
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TemplateSheet(t: Template, onDismiss: () -> Unit, onUse: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = EditsColors.Surface, contentColor = Color.White, modifier = Modifier.testTag("template_sheet")) {
-        Column(Modifier.fillMaxWidth().tagsAsResourceIds().padding(horizontal = 16.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = EditsColors.Surface, contentColor = Color.White, modifier = Modifier.testTag("template_sheet")) {
+        Column(Modifier.fillMaxWidth().tagsAsResourceIds().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 TemplatePoster(t, Modifier.width(130.dp).aspectRatio(0.72f))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {

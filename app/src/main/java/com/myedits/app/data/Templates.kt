@@ -178,7 +178,7 @@ object Templates {
                     transition = tr,
                     transitionMs = minOf(450L, c.durationMs / 2).coerceAtLeast(100L),
                     animation = slot.anim,
-                    fadeInMs = if (i == 0 && c.durationMs > 900) 250L else 0L,
+                    fadeInMs = 0L,
                     fadeOutMs = if (last && c.durationMs > 1200) 500L else 0L,
                 )
             }

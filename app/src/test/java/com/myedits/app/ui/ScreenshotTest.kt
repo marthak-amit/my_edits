@@ -156,4 +156,43 @@ class ScreenshotTest {
         val now = System.currentTimeMillis(); val p = Project("empty1", "Untitled", now, now); TestData.app().container.repository.save(p)
         editor(p); shot("22_editor_empty")
     }
+    // ---- Templates, transitions, effects ----
+    @Test fun home_08_template_sheet() { home(); click("tab_TEMPLATES"); rule.waitForTag("inspiration_list"); click("template_beat_drop"); rule.waitForTag("template_sheet"); shot("08_home_template_sheet") }
+
+    @Test fun editor_14_transition() { editor(seededEditor()); click("tool_edit"); click("tool_transition"); rule.waitForTag("panel_transition"); click("transition_ZOOM"); shot("23_editor_transition") }
+
+    @Test fun editor_15_animate() { editor(seededEditor()); click("tool_edit"); click("tool_animate"); rule.waitForTag("panel_animate"); click("anim_ZOOM_IN"); shot("24_editor_animate") }
+
+    @Test fun editor_16_effects() {
+        editor(seededEditor()); click("tool_edit"); click("tool_effects"); rule.waitForTag("panel_effects")
+        click("fx_bars"); tag("slider_vignette").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(0.7f) }
+        shot("25_editor_effects")
+    }
+
+    @Test fun editor_17_position() {
+        editor(seededEditor()); click("tool_edit"); click("tool_position"); rule.waitForTag("panel_position")
+        tag("slider_zoom").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(1.6f) }
+        shot("26_editor_position")
+    }
+
+    @Test fun editor_18_text_animation() {
+        val p = seededEditor(); editor(p); click("lane_${p.texts.single().id}"); click("tool_layer_anim"); rule.waitForTag("panel_layer_anim"); click("layer_anim_POP"); shot("27_editor_text_animation")
+    }
+
+    @Test fun editor_19_captions() { editor(seededEditor()); click("tool_captions"); rule.waitForTag("panel_captions"); shot("28_editor_captions") }
+
+    @Test fun editor_20_voice() {
+        val p = seededEditor(); editor(p)
+        click("lane_${p.audios.first { it.kind == AudioKind.SFX }.id}"); click("tool_voice"); rule.waitForTag("panel_voice"); click("voice_deep"); shot("29_editor_voice")
+    }
+
+    @Test fun editor_21_from_template() {
+        val base = TestData.project("Glow Up", n = 3)
+        val sound: (String, Long) -> AudioTrack? = { id, start ->
+            com.myedits.app.audio.SoundLibrary.byId(id)?.let { ProjectOps.makeAudio(base, com.myedits.app.audio.SoundLibrary.file(TestData.app().container.repository.mediaDir(base.id), id).path, it.label, AudioKind.MUSIC, it.durationMs, start) }
+        }
+        val p = Templates.apply(base, Templates.byId("travel_diary")!!, base.clips, sound)
+        TestData.app().container.repository.save(p)
+        editor(p); shot("30_editor_from_template")
+    }
 }

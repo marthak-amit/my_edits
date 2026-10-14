@@ -46,6 +46,10 @@ timeline, panels, project covers, and **export** of a project combining three cl
 filters, fades, text, a sticker and an audio track (`dist/sample_export_from_device_720p.mp4`) — also from the
 minified (R8) build that the release APK is built from.
 
+Also verified on the emulator in 1.1: building a project from a template (`--es seed_template`), exporting it with zoom/spin transitions, Ken-Burns motion, music + sound effects, cinema bars, vignette and captions (`dist/template_*_export_from_device_720p.mp4`, frames inspected), the minified release build launching and showing the Templates tab, and the play button (play, pause, replay after the end, five rapid taps, judged from the preview log; the emulator is too slow to judge smoothness).
+
+Play-button fix: the preview now stops itself at the end (Media3's CompositionPlayer kept "playing" past the last frame without ever reporting *ended*, which left the button showing pause over a frozen picture), keeps the button state equal to the user's intent, debounces pipeline rebuilds and recreates the player after a graphics/codec failure.
+
 Not verified on a device: the in-app camera could start recording on the emulator but the emulator was too slow
 to finish a take, voiceover recording (emulator audio was disabled), text-to-speech (no engine on the image),
 4K export, and any hardware-codec behaviour (the emulator only has software codecs). Treat those as untested.
