@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- an "E" with a play-triangle notch, kept inside the 66dp adaptive-icon safe zone -->
+    <path android:fillColor="#FFFFFF" android:pathData="M32,30h34v8H42v10h20v8H42v10h26v8H32z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M72,42l8,6v12l-8,6z" />
+</vector>

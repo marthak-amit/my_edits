@@ -51,7 +51,13 @@ object Thumbs {
         val r = MediaMetadataRetriever()
         return try {
             r.setDataSource(path)
-            val raw = r.getFrameAtTime(timeMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return null
+            // Some containers return nothing for one seek mode (typically right at 0 ms); try the others.
+            val at = timeMs * 1000
+            val raw = r.getFrameAtTime(at, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: r.getFrameAtTime(at, MediaMetadataRetriever.OPTION_CLOSEST)
+                ?: r.getFrameAtTime(at, MediaMetadataRetriever.OPTION_NEXT_SYNC)
+                ?: r.frameAtTime
+                ?: return null
             scaleToHeight(raw, heightPx)
         } finally {
             runCatching { r.release() }

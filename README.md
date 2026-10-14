@@ -35,6 +35,18 @@ Text and stickers are rendered by one renderer used by both the live preview and
 * Reverse playback, keyframes, per-clip transitions other than fade, video overlays (photo overlays are supported).
 * Real Instagram analytics — *Insights* shows your own activity in this app.
 
+## Verified on a real Android system
+
+The app was installed and driven on an Android 9 (API 28, x86_64) emulator, which found and fixed bugs that
+JVM tests cannot see. Confirmed working there: import of videos and photos, preview playback, scrubbing, the
+timeline, panels, project covers, and **export** of a project combining three clips, a photo, a speed change,
+filters, fades, text, a sticker and an audio track (`dist/sample_export_from_device_720p.mp4`) — also from the
+minified (R8) build that the release APK is built from.
+
+Not verified on a device: the in-app camera could start recording on the emulator but the emulator was too slow
+to finish a take, voiceover recording (emulator audio was disabled), text-to-speech (no engine on the image),
+4K export, and any hardware-codec behaviour (the emulator only has software codecs). Treat those as untested.
+
 ## Build
 
 Requirements: JDK 17+, Android SDK 35 (build-tools 35), network access to Google Maven.

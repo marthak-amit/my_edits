@@ -82,6 +82,8 @@ private fun CameraContent(mic: Boolean, onClose: () -> Unit, onRecorded: (File) 
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var camera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
     var finishing by remember { mutableStateOf(false) }
+    // Leaving the screen while recording discards the take instead of silently adding it to the project.
+    val discard = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
     DisposableEffect(lens) {
         val future = ProcessCameraProvider.getInstance(ctx)
@@ -107,7 +109,7 @@ private fun CameraContent(mic: Boolean, onClose: () -> Unit, onRecorded: (File) 
         elapsed = 0
         while (recording != null) { delay(100); elapsed += 100 }
     }
-    DisposableEffect(Unit) { onDispose { runCatching { recording?.stop() } } }
+    DisposableEffect(Unit) { onDispose { discard.set(true); runCatching { recording?.stop() } } }
 
     fun startRecording() {
         val vc = videoCapture ?: return
@@ -119,6 +121,7 @@ private fun CameraContent(mic: Boolean, onClose: () -> Unit, onRecorded: (File) 
         recording = pending.start(ContextCompat.getMainExecutor(ctx)) { ev ->
             if (ev is VideoRecordEvent.Finalize) {
                 recording = null
+                if (discard.get()) { file.delete(); return@start }
                 if (!ev.hasError() && file.length() > 0) { finishing = true; onRecorded(file) }
                 else { file.delete(); if (ev.error != VideoRecordEvent.Finalize.ERROR_NO_VALID_DATA) Toast.makeText(ctx, "Recording failed", Toast.LENGTH_SHORT).show() else Toast.makeText(ctx, "Recording was too short", Toast.LENGTH_SHORT).show() }
             }

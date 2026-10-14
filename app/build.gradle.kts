@@ -35,7 +35,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // -dontoptimize variant: R8 inlining broke Media3's API-31-only code paths on older devices.
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
             // Falls back to the debug key if release.keystore hasn't been generated (scripts/make-keystore.sh).
             signingConfig = if (rootProject.file("release.keystore").exists()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }

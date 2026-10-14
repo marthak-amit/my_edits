@@ -329,7 +329,7 @@ class EditorViewModel(
             busy = "Adding recording…"
             try {
                 val target = repo.newMediaFile(projectId, "mp4")
-                withContext(Dispatchers.IO) { file.copyTo(target, overwrite = true) }
+                withContext(Dispatchers.IO) { file.copyTo(target, overwrite = true); file.delete() }
                 val clip = withContext(Dispatchers.IO) { app.importer.clipFromFile(target, isImage = false) }
                 edit { Templates.applyOnFirstImport(ProjectOps.appendClips(it, listOf(clip)), it.isEmpty) }
             } catch (e: Exception) {

@@ -258,8 +258,12 @@ private fun FilterPanel(vm: EditorViewModel) {
     val clip = vm.selectedClip ?: vm.project.clips.firstOrNull() ?: return
     var all by remember { mutableStateOf(false) }
     val frame by produceState<android.graphics.Bitmap?>(null, clip.path, clip.inMs) {
-        value = Thumbs.frame(clip.path, clip.isImage, clip.inMs, 160)
+        // a little way into the clip so fades / black first frames don't make every swatch dark
+        val at = clip.inMs + minOf(600L, (clip.outMs - clip.inMs) / 3)
+        value = Thumbs.frame(clip.path, clip.isImage, at, 160)
     }
+    // Shown until (or instead of) the real frame so the swatches always preview the colour grade.
+    val fallback = remember { swatchGradient() }
     Column(Modifier.testTag("panel_filter")) {
         PanelHeader("Filters", { vm.closePanel() }, trailing = {
             Text("All clips", color = EditsColors.TextDim, style = MaterialTheme.typography.bodySmall)
@@ -273,12 +277,10 @@ private fun FilterPanel(vm: EditorViewModel) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(Modifier.size(60.dp, 72.dp).clip(RoundedCornerShape(10.dp)).background(EditsColors.Surface3).then(if (selected) Modifier.border(2.dp, EditsColors.Blue, RoundedCornerShape(10.dp)) else Modifier)) {
-                        frame?.let {
-                            Image(
-                                it.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
-                                colorFilter = ColorFilter.colorMatrix(ColorMatrix(ColorMath.toAndroidColorMatrix(f.matrix))),
-                            )
-                        }
+                        Image(
+                            (frame ?: fallback).asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                            colorFilter = ColorFilter.colorMatrix(ColorMatrix(ColorMath.toAndroidColorMatrix(f.matrix))),
+                        )
                     }
                     Text(f.label, color = if (selected) Color.White else EditsColors.TextDim, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
                 }
@@ -572,4 +574,16 @@ internal fun splitEmoji(s: String): List<String> {
     var end = it.next()
     while (end != java.text.BreakIterator.DONE) { out += s.substring(start, end); start = end; end = it.next() }
     return out
+}
+
+
+/** A small colourful gradient used to preview filters when no video frame is available yet. */
+private fun swatchGradient(): android.graphics.Bitmap {
+    val bmp = android.graphics.Bitmap.createBitmap(60, 72, android.graphics.Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(bmp)
+    val p = android.graphics.Paint().apply {
+        shader = android.graphics.LinearGradient(0f, 0f, 60f, 72f, intArrayOf(0xFFF4A261.toInt(), 0xFFE76F51.toInt(), 0xFF2A9D8F.toInt(), 0xFF264653.toInt()), null, android.graphics.Shader.TileMode.CLAMP)
+    }
+    c.drawRect(0f, 0f, 60f, 72f, p)
+    return bmp
 }
