@@ -272,7 +272,7 @@ private fun FilterPanel(vm: EditorViewModel) {
                     Modifier.clip(RoundedCornerShape(10.dp)).clickable { if (vm.selectedClip == null) vm.selectClipAtPlayhead(); vm.setFilter(f.id, all) }.testTag("filter_${f.id}"),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Box(Modifier.size(64.dp, 80.dp).clip(RoundedCornerShape(10.dp)).background(EditsColors.Surface3).then(if (selected) Modifier.border(2.dp, EditsColors.Blue, RoundedCornerShape(10.dp)) else Modifier)) {
+                    Box(Modifier.size(60.dp, 72.dp).clip(RoundedCornerShape(10.dp)).background(EditsColors.Surface3).then(if (selected) Modifier.border(2.dp, EditsColors.Blue, RoundedCornerShape(10.dp)) else Modifier)) {
                         frame?.let {
                             Image(
                                 it.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
@@ -410,13 +410,15 @@ private fun SoundsPanel(vm: EditorViewModel) {
         LazyRow(Modifier.padding(vertical = 8.dp), contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(SoundLibrary.items.filter { it.category == tab }) { item ->
                 Column(
-                    Modifier.width(112.dp).clip(RoundedCornerShape(12.dp)).background(EditsColors.Surface2).padding(10.dp).testTag("sound_${item.id}"),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    Modifier.width(124.dp).clip(RoundedCornerShape(12.dp)).background(EditsColors.Surface2).padding(10.dp).testTag("sound_${item.id}"),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Text(item.emoji, fontSize = 24.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(item.emoji, fontSize = 20.sp)
+                        Text(formatDuration(item.durationMs), color = EditsColors.TextDim, style = MaterialTheme.typography.bodySmall)
+                    }
                     Text(item.label, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    Text(formatDuration(item.durationMs), color = EditsColors.TextDim, style = MaterialTheme.typography.bodySmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
                         IconButton({ scope.launch { preview(item) } }, Modifier.size(34.dp).background(EditsColors.Surface3, CircleShape).testTag("sound_play_${item.id}")) {
                             Icon(if (playingId == item.id) Icons.Filled.Stop else Icons.Filled.PlayArrow, "Preview", tint = Color.White, modifier = Modifier.size(18.dp))
                         }

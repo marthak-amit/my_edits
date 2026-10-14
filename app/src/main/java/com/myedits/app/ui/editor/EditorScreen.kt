@@ -106,8 +106,8 @@ fun EditorScreen(
         BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding().imePadding().testTag("editor_screen")) {
             // Keep the preview big: tool panels get a bounded share of the height and the timeline
             // shrinks to its essentials while a panel is open.
-            val panelMax = (maxHeight * 0.34f).coerceIn(190.dp, 300.dp)
-            val timelineMax = if (vm.panel != Panel.NONE) 124.dp else 216.dp
+            val panelMax = (maxHeight * 0.44f).coerceIn(200.dp, 340.dp)
+            val timelineMax = if (vm.panel != Panel.NONE) 104.dp else 216.dp
             Column(Modifier.fillMaxSize()) {
                 TopBar(vm, onClose = ::leave, onRename = { showRename = true }, onExport = { vm.pause(); showExport = true })
                 PreviewPane(vm, Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp), previewSurface)

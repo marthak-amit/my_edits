@@ -64,6 +64,8 @@ class Exporter(private val context: Context) {
                             .setVideoMimeType(MimeTypes.VIDEO_H264)
                             .setAudioMimeType(MimeTypes.AUDIO_AAC)
                             .setEncoderFactory(encoder)
+                            // The default 10 s gap limit is too tight for effect-heavy 4K on slow devices; users can still cancel.
+                            .setMaxDelayBetweenMuxerSamplesMs(90_000)
                             .addListener(object : Transformer.Listener {
                                 override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                                     if (cont.isActive) cont.resume(Unit)

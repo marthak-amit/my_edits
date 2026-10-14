@@ -68,11 +68,11 @@ class CompositionBuilderTest {
         val types = CompositionBuilder.clipItem(c, spec).effects.videoEffects.map { it.javaClass.simpleName }
         assertTrue(types.toString(), types.contains("ScaleAndRotateTransformation"))
         assertTrue(types.toString(), types.any { it.contains("Lambda") || it.contains("RgbMatrix") || it.contains("\$\$") })
-        assertTrue(types.toString(), types.contains("TimestampAdjustment")) // media3 models speed as a timestamp adjustment
+        assertTrue(types.toString(), types.contains("SpeedChangeEffect"))
         assertTrue(types.toString(), types.contains("Presentation"))
         // Presentation must come after rotation/colour/speed and before the zoom
         assertTrue(types.indexOf("ScaleAndRotateTransformation") < types.indexOf("Presentation"))
-        assertTrue(types.indexOf("TimestampAdjustment") < types.indexOf("Presentation"))
+        assertTrue(types.indexOf("SpeedChangeEffect") < types.indexOf("Presentation"))
         assertTrue(types.indexOf("Presentation") < types.lastIndex)
     }
 

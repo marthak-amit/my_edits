@@ -70,7 +70,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         viewModelScope.launch { val p = newProject(name, template); refresh(); _open.emit(p.id to camera) }
     }
 
-    fun createFromUris(uris: List<Uri>, template: String = "") {
+    fun createFromUris(uris: List<Uri>, template: String = "", decorate: ((Project) -> Project)? = null) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
             busy = "Importing ${uris.size} item${if (uris.size > 1) "s" else ""}…"
@@ -80,6 +80,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                 val clips = app.importer.importVisual(p.id, uris)
                 var withClips = ProjectOps.appendClips(p, clips)
                 withClips = Templates.applyOnFirstImport(withClips, true)
+                decorate?.let { withClips = it(withClips) }
                 withContext(Dispatchers.IO) { app.repository.save(withClips); app.repository.writeCover(withClips) }
                 refresh()
                 _open.emit(p.id to false)

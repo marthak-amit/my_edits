@@ -8,7 +8,7 @@ import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.OverlaySettings
 import androidx.media3.common.audio.AudioProcessor
-import androidx.media3.common.audio.SpeedProvider
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.*
 import androidx.media3.transformer.Composition
@@ -46,11 +46,6 @@ object CompositionBuilder {
     }
 
     private fun even(v: Int): Int = if (v % 2 == 0) v else v + 1
-
-    private class ConstantSpeed(private val speed: Float) : SpeedProvider {
-        override fun getSpeed(timeUs: Long): Float = speed
-        override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = C.TIME_UNSET
-    }
 
     fun build(p: Project, spec: RenderSpec): Composition {
         require(p.clips.isNotEmpty()) { "Project has no clips" }
@@ -130,11 +125,11 @@ object CompositionBuilder {
         if (!ColorMath.isIdentity(m)) videoEffects += RgbMatrix { _, _ -> m }
 
         val audioProcessors = mutableListOf<AudioProcessor>()
-        val speedPair = if (!c.isImage && c.speed != 1f) Effects.createExperimentalSpeedChangingEffect(ConstantSpeed(c.speed)) else null
-        // 3. speed (video + matching audio resampling)
-        if (speedPair != null) {
-            videoEffects += speedPair.second
-            audioProcessors += speedPair.first
+        // 3. speed (video timestamps + matching audio resampling). The classic SpeedChangeEffect/Sonic pair is used
+        //    because the experimental speed-provider variant dropped the tail of the last item's video on device.
+        if (!c.isImage && c.speed != 1f) {
+            videoEffects += SpeedChangeEffect(c.speed)
+            audioProcessors += SonicAudioProcessor().apply { setSpeed(c.speed) }
         }
         // 4. fit/fill into the canvas
         videoEffects += Presentation.createForWidthAndHeight(

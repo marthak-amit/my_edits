@@ -237,6 +237,9 @@ fun Timeline(
                     var mode = 0 // 0 undecided, 1 scrub, 2 vertical scroll, 3 trim/move, 4 zoom
                     var totalDx = 0f; var totalDy = 0f
                     var startSel: Selection? = null
+                    // Scrub from a locally accumulated position: on a busy device several move events can arrive
+                    // before the playhead state recomposes, and re-reading it would drop most of the movement.
+                    var scrubPos = curPlayhead.toDouble()
 
                     // capture state for drag modes
                     val clipHit = (hit as? Hit.ClipEdge)?.let { h -> curLiveSpans.firstOrNull { it.clip.id == h.id } }
@@ -286,11 +289,18 @@ fun Timeline(
                                 else -> 1
                             }
                             moved = true
-                            if (mode == 1) onScrubbing(true)
+                            if (mode == 1) {
+                                onScrubbing(true)
+                                // movement made before the slop was crossed counts too (this event's delta is applied below)
+                                scrubPos = curPlayhead - (totalDx - dp.x) / curPx.toDouble()
+                            }
                             if (mode == 3) startSel = laneSel
                         }
                         if (c.pressed) when (mode) {
-                            1 -> { onSeek((curPlayhead - (dp.x / curPx)).roundToInt().toLong().coerceIn(0L, curLiveTotal)); c.consume() }
+                            1 -> {
+                                scrubPos = (scrubPos - dp.x / curPx).coerceIn(0.0, curLiveTotal.toDouble())
+                                onSeek(scrubPos.roundToInt().toLong()); c.consume()
+                            }
                             2 -> { scrollY = (scrollY - dp.y).coerceIn(0f, max(0f, curContentH - size.height)); c.consume() }
                             3 -> {
                                 val dMs = totalDx / curPx
@@ -359,7 +369,7 @@ fun Timeline(
                             onScrubbing(false)
                             if (abs(vx) > 400f) {
                                 scope.launch {
-                                    fling.snapTo(curPlayhead.toFloat())
+                                    fling.snapTo(scrubPos.toFloat())
                                     fling.animateDecay(-vx / curPx, exponentialDecay(frictionMultiplier = 1.6f)) {
                                         val ms = value.coerceIn(0f, curLiveTotal.toFloat())
                                         onSeek(ms.toLong())

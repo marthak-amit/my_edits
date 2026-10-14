@@ -1,6 +1,7 @@
 package com.myedits.app.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -263,6 +264,26 @@ class EditorUiTest {
         tag("editor_undo").assertIsEnabled()
         click("editor_undo"); assertEquals(0, project().clips[0].rotation); tag("editor_redo").assertIsEnabled()
         click("editor_redo"); assertEquals(90, project().clips[0].rotation)
+    }
+
+    @Test fun swipingTheTimelineScrubsThePlayheadBothWays() {
+        val p = TestData.project(n = 3); open(p)
+        tag("time_label").assertTextContains("0:00.0", substring = true)
+        tag("timeline").performTouchInput { swipe(Offset(centerX + 150f, centerY), Offset(centerX - 150f, centerY), durationMillis = 400) }
+        rule.waitFor { true }
+        val after = fake.positionMs
+        assertTrue("playhead moved forward, got $after", after > 1500)
+        tag("timeline").performTouchInput { swipe(Offset(centerX - 150f, centerY), Offset(centerX + 150f, centerY), durationMillis = 400) }
+        rule.waitFor { true }
+        assertTrue("playhead moved back", fake.positionMs < after - 1500)
+    }
+
+    @Test fun scrubbingNeverLeavesTheProject() {
+        val p = TestData.project(n = 1); open(p)
+        tag("timeline").performTouchInput { swipe(Offset(centerX + 150f, centerY), Offset(centerX - 150f, centerY), durationMillis = 300); swipe(Offset(centerX + 150f, centerY), Offset(centerX - 150f, centerY), durationMillis = 300) }
+        rule.waitFor { true }
+        assertTrue(fake.positionMs <= 3000)
+        tag("time_label").assertTextContains("/ 0:03.0", substring = true)
     }
 
     @Test fun zoomButtonsKeepTimelineUsable() {

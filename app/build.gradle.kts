@@ -18,6 +18,7 @@ android {
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
+        buildConfigField("boolean", "QA", "false")
     }
 
     signingConfigs {
@@ -41,6 +42,14 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+        }
+        // Minified like release (to test R8) but with the on-device seeding hook enabled. Never shipped.
+        create("qa") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".qa"
+            versionNameSuffix = "-qa"
+            matchingFallbacks += "release"
+            buildConfigField("boolean", "QA", "true")
         }
     }
 

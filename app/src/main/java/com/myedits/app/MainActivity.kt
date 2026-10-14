@@ -38,13 +38,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent { MyEditsTheme { AppRoot() } }
-        if (BuildConfig.DEBUG) handleDebugSeed(intent)
+        if (BuildConfig.DEBUG || BuildConfig.QA) handleDebugSeed(intent)
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (BuildConfig.DEBUG) handleDebugSeed(intent)
+        if (BuildConfig.DEBUG || BuildConfig.QA) handleDebugSeed(intent)
     }
 
     /**
@@ -55,7 +55,24 @@ class MainActivity : ComponentActivity() {
         val paths = intent?.getStringArrayExtra("seed_media") ?: return
         intent.removeExtra("seed_media")
         val uris = paths.map { android.net.Uri.fromFile(java.io.File(it)) }
-        androidx.lifecycle.ViewModelProvider(this, HomeViewModel.Factory(container))[HomeViewModel::class.java].createFromUris(uris)
+        val demo = intent.getBooleanExtra("seed_demo", false)
+        val seedSpeed = intent.getFloatExtra("seed_speed", 1f)
+        val c = container
+        val decorate: ((com.myedits.app.data.Project) -> com.myedits.app.data.Project)? = if (seedSpeed != 1f) { p ->
+            com.myedits.app.engine.ProjectOps.updateAllClips(p) { it.copy(speed = seedSpeed) }
+        } else if (!demo) null else { p ->
+            // A project that exercises most of the pipeline: filters, fades, speed, text, sticker, audio.
+            var q = p
+            q.clips.getOrNull(0)?.let { cl -> q = com.myedits.app.engine.ProjectOps.updateClip(q, cl.id) { it.copy(filter = "sunset", filterIntensity = 0.8f, fadeInMs = 300) } }
+            q.clips.getOrNull(1)?.let { cl -> q = com.myedits.app.engine.ProjectOps.updateClip(q, cl.id) { it.copy(filter = "vivid", zoom = 1.2f, fit = com.myedits.app.data.FitMode.FILL) } }
+            q.clips.getOrNull(2)?.let { cl -> q = com.myedits.app.engine.ProjectOps.updateClip(q, cl.id) { it.copy(speed = 2f, filter = "mono") } }
+            q = com.myedits.app.engine.ProjectOps.addText(q, com.myedits.app.engine.ProjectOps.defaultText(q, 300, "Golden hour").copy(y = 0.8f, bg = com.myedits.app.data.TextBg.ROUNDED, font = com.myedits.app.data.FontStyleId.BOLD))
+            q = com.myedits.app.engine.ProjectOps.addSticker(q, com.myedits.app.engine.ProjectOps.defaultSticker(q, 300, "\uD83D\uDD25").copy(x = 0.8f, y = 0.2f))
+            val wav = com.myedits.app.audio.SoundLibrary.file(c.soundDir, "sfx_chime")
+            val dest = c.repository.newMediaFile(p.id, "wav").also { wav.copyTo(it, overwrite = true) }
+            com.myedits.app.engine.ProjectOps.addAudio(q, com.myedits.app.engine.ProjectOps.makeAudio(q, dest.path, "Chime", com.myedits.app.data.AudioKind.SFX, 1800, 500))
+        }
+        androidx.lifecycle.ViewModelProvider(this, HomeViewModel.Factory(container))[HomeViewModel::class.java].createFromUris(uris, decorate = decorate)
     }
 }
 
