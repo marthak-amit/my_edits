@@ -62,8 +62,26 @@ android {
         unitTests {
             isIncludeAndroidResources = true
             isReturnDefaultValues = true
+            all { test ->
+                // Robolectric's own downloader does not cope with some proxies; Gradle resolves the
+                // framework jar instead and Robolectric runs offline against that directory.
+                test.dependsOn("copyRobolectricJars")
+                test.systemProperty("robolectric.offline", "true")
+                test.systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric-jars").get().asFile.path)
+                test.systemProperty("roborazzi.output.dir", rootProject.file("screenshots/jvm").path)
+                test.maxHeapSize = "3g"
+            }
         }
     }
+}
+
+val robolectricJars: Configuration by configurations.creating
+dependencies {
+    robolectricJars("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
+}
+tasks.register<Copy>("copyRobolectricJars") {
+    from(robolectricJars)
+    into(layout.buildDirectory.dir("robolectric-jars"))
 }
 
 dependencies {

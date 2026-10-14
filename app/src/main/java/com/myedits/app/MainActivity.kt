@@ -16,6 +16,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
@@ -36,16 +38,35 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent { MyEditsTheme { AppRoot() } }
+        if (BuildConfig.DEBUG) handleDebugSeed(intent)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (BuildConfig.DEBUG) handleDebugSeed(intent)
+    }
+
+    /**
+     * Debug builds only: `adb shell am start -n ... --esa seed_media /sdcard/a.mp4,/sdcard/b.jpg`
+     * creates a project from local files so end-to-end tests don't have to drive the system picker.
+     */
+    private fun handleDebugSeed(intent: android.content.Intent?) {
+        val paths = intent?.getStringArrayExtra("seed_media") ?: return
+        intent.removeExtra("seed_media")
+        val uris = paths.map { android.net.Uri.fromFile(java.io.File(it)) }
+        androidx.lifecycle.ViewModelProvider(this, HomeViewModel.Factory(container))[HomeViewModel::class.java].createFromUris(uris)
     }
 }
 
 @UnstableApi
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun AppRoot() {
     var route by rememberSaveable { mutableStateOf(HOME) }
     val app = LocalContext.current.container
     val homeVm: HomeViewModel = viewModel(factory = HomeViewModel.Factory(app))
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(Color.Black)) {
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(Color.Black).semantics { testTagsAsResourceId = true }) {
         AnimatedContent(
             targetState = route,
             transitionSpec = {

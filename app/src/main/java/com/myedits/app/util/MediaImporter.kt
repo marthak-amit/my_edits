@@ -30,9 +30,14 @@ class MediaImporter(private val context: Context, private val repo: ProjectRepos
         uris.map { importOne(projectId, it) }
     }
 
+    /** Content type from the provider, falling back to the file extension (file:// Uris have none). */
+    private fun mimeOf(uri: Uri): String =
+        context.contentResolver.getType(uri)
+            ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(MimeTypeMap.getFileExtensionFromUrl(uri.toString()).lowercase()).orEmpty()
+
     private fun importOne(projectId: String, uri: Uri): Clip {
         val cr = context.contentResolver
-        val mime = cr.getType(uri).orEmpty()
+        val mime = mimeOf(uri)
         val isImage = mime.startsWith("image/")
         val isVideo = mime.startsWith("video/")
         if (!isImage && !isVideo) throw ImportException("Unsupported file type: ${mime.ifEmpty { "unknown" }}")
@@ -86,8 +91,8 @@ class MediaImporter(private val context: Context, private val repo: ProjectRepos
     /** Imports an audio file (music, etc.) chosen by the user. */
     suspend fun importAudio(projectId: String, uri: Uri): AudioInfo = withContext(Dispatchers.IO) {
         val cr = context.contentResolver
-        val mime = cr.getType(uri).orEmpty()
-        val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: "m4a"
+        val mime = mimeOf(uri)
+        val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: uri.lastPathSegment?.substringAfterLast('.', "m4a") ?: "m4a"
         val dest = repo.newMediaFile(projectId, ext)
         try {
             (cr.openInputStream(uri) ?: throw ImportException("Cannot open the selected file")).use { input ->

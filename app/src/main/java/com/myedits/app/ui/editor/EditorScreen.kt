@@ -36,10 +36,16 @@ import com.myedits.app.ui.theme.EditsColors
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditorScreen(projectId: String, openCameraOnStart: Boolean, onExit: () -> Unit) {
+fun EditorScreen(
+    projectId: String,
+    openCameraOnStart: Boolean,
+    onExit: () -> Unit,
+    previewFactory: (android.content.Context) -> com.myedits.app.engine.PreviewController = { com.myedits.app.engine.PreviewPlayer(it) },
+    previewSurface: @Composable BoxScope.(EditorViewModel) -> Unit = { DefaultPreviewSurface(it) },
+) {
     val ctx = LocalContext.current
     val app = ctx.container
-    val vm: EditorViewModel = viewModel(key = "editor_$projectId", factory = EditorViewModel.Factory(app, projectId))
+    val vm: EditorViewModel = viewModel(key = "editor_$projectId", factory = EditorViewModel.Factory(app, projectId, previewFactory))
     val snackbar = remember { SnackbarHostState() }
     var showRename by remember { mutableStateOf(false) }
     var showExport by remember { mutableStateOf(false) }
@@ -88,19 +94,26 @@ fun EditorScreen(projectId: String, openCameraOnStart: Boolean, onExit: () -> Un
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().testTag("editor_screen")) {
-            TopBar(vm, onClose = ::leave, onRename = { showRename = true }, onExport = { vm.pause(); showExport = true })
-            PreviewPane(vm, Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp))
-            Transport(vm)
-            Timeline(
-                project = vm.project, playheadMs = vm.playheadMs, selection = vm.selection, pxPerMs = vm.pxPerMs,
-                onZoom = { vm.pxPerMs = it }, onSeek = vm::seek, onScrubbing = vm::scrubbing, onSelect = vm::select,
-                onTrimClip = { id, i, o -> vm.select(Selection.OfClip(id)); vm.trimSelectedClip(i, o) },
-                onLayerTiming = vm::setLayerTiming,
-                onTrimAudio = vm::trimAudio,
-                onAddClip = actions.pickMedia,
-            )
-            EditorBottom(vm, actions)
+        BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding().imePadding().testTag("editor_screen")) {
+            // Keep the preview big: tool panels get a bounded share of the height and the timeline
+            // shrinks to its essentials while a panel is open.
+            val panelMax = (maxHeight * 0.34f).coerceIn(190.dp, 300.dp)
+            val timelineMax = if (vm.panel != Panel.NONE) 124.dp else 216.dp
+            Column(Modifier.fillMaxSize()) {
+                TopBar(vm, onClose = ::leave, onRename = { showRename = true }, onExport = { vm.pause(); showExport = true })
+                PreviewPane(vm, Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp), previewSurface)
+                Transport(vm)
+                Timeline(
+                    project = vm.project, playheadMs = vm.playheadMs, selection = vm.selection, dpPerMs = vm.pxPerMs,
+                    onZoom = { vm.pxPerMs = it }, onSeek = vm::seek, onScrubbing = vm::scrubbing, onSelect = vm::select,
+                    onTrimClip = { id, i, o -> vm.select(Selection.OfClip(id)); vm.trimSelectedClip(i, o) },
+                    onLayerTiming = vm::setLayerTiming,
+                    onTrimAudio = vm::trimAudio,
+                    onAddClip = actions.pickMedia,
+                    maxHeight = timelineMax,
+                )
+                EditorBottom(vm, actions, Modifier.heightIn(max = panelMax))
+            }
         }
 
         SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).systemBarsPadding().padding(top = 56.dp)) { Snackbar(it, containerColor = EditsColors.Surface3, contentColor = Color.White) }
@@ -153,8 +166,8 @@ private fun Transport(vm: EditorViewModel) {
             contentAlignment = Alignment.Center,
         ) { Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (playing) "Pause" else "Play", tint = Color.Black, modifier = Modifier.size(28.dp)) }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
-            IconButton(onClick = { vm.pxPerMs = (vm.pxPerMs / 1.5f).coerceAtLeast(0.012f) }, modifier = Modifier.testTag("zoom_out")) { Icon(Icons.Filled.ZoomOut, "Zoom out", tint = Color.White) }
-            IconButton(onClick = { vm.pxPerMs = (vm.pxPerMs * 1.5f).coerceAtMost(0.9f) }, modifier = Modifier.testTag("zoom_in")) { Icon(Icons.Filled.ZoomIn, "Zoom in", tint = Color.White) }
+            IconButton(onClick = { vm.pxPerMs = (vm.pxPerMs / 1.5f).coerceAtLeast(0.006f) }, modifier = Modifier.testTag("zoom_out")) { Icon(Icons.Filled.ZoomOut, "Zoom out", tint = Color.White) }
+            IconButton(onClick = { vm.pxPerMs = (vm.pxPerMs * 1.5f).coerceAtMost(0.45f) }, modifier = Modifier.testTag("zoom_in")) { Icon(Icons.Filled.ZoomIn, "Zoom in", tint = Color.White) }
         }
     }
 }

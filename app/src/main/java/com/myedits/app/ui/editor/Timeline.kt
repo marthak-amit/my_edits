@@ -53,8 +53,9 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-private const val MIN_PX_PER_MS = 0.012f
-private const val MAX_PX_PER_MS = 0.9f
+/** Zoom limits in dp per millisecond, so the timeline looks the same on every screen density. */
+private const val MIN_DP_PER_MS = 0.006f
+private const val MAX_DP_PER_MS = 0.45f
 
 /** One bar on a layer lane (text, sticker or audio). */
 private data class LaneItem(
@@ -103,7 +104,7 @@ fun Timeline(
     project: Project,
     playheadMs: Long,
     selection: Selection,
-    pxPerMs: Float,
+    dpPerMs: Float,
     onZoom: (Float) -> Unit,
     onSeek: (Long) -> Unit,
     onScrubbing: (Boolean) -> Unit,
@@ -113,8 +114,10 @@ fun Timeline(
     onTrimAudio: (id: String, inMs: Long, outMs: Long, startMs: Long) -> Unit,
     onAddClip: () -> Unit,
     modifier: Modifier = Modifier,
+    maxHeight: androidx.compose.ui.unit.Dp = 216.dp,
 ) {
     val density = LocalDensity.current
+    val pxPerMs = dpPerMs * density.density
     val slop = LocalViewConfiguration.current.touchSlop
     val scope = rememberCoroutineScope()
     val measurer = rememberTextMeasurer()
@@ -218,7 +221,7 @@ fun Timeline(
     Box(
         modifier
             .fillMaxWidth()
-            .height(with(density) { min(contentH, 230.dp.toPx()).toDp() }.coerceAtLeast(120.dp))
+            .height(with(density) { min(contentH, maxHeight.toPx()).toDp() }.coerceAtLeast(minOf(maxHeight, 100.dp)))
             .clipToBounds()
             .background(Color.Black)
             .onSizeChanged { widthPx = it.width }
@@ -267,7 +270,7 @@ fun Timeline(
                         if (pressed.size >= 2) {
                             if (!multi) { multi = true; mode = 4 }
                             val zoom = event.calculateZoom()
-                            if (zoom != 1f) onZoom((curPx * zoom).coerceIn(MIN_PX_PER_MS, MAX_PX_PER_MS))
+                            if (zoom != 1f) onZoom((curPx * zoom / density.density).coerceIn(MIN_DP_PER_MS, MAX_DP_PER_MS))
                             event.changes.forEach { it.consume() }
                             moved = true
                             continue

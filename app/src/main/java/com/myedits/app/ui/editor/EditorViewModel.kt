@@ -43,10 +43,14 @@ sealed interface ExportUi {
 }
 
 @UnstableApi
-class EditorViewModel(private val app: AppContainer, private val projectId: String) : ViewModel() {
+class EditorViewModel(
+    private val app: AppContainer,
+    private val projectId: String,
+    previewFactory: (android.content.Context) -> PreviewController = { PreviewPlayer(it) },
+) : ViewModel() {
 
     private val repo = app.repository
-    val preview = PreviewPlayer(app.context)
+    val preview: PreviewController = previewFactory(app.context)
 
     var project by mutableStateOf(
         repo.load(projectId) ?: Project(projectId, "Untitled", System.currentTimeMillis(), System.currentTimeMillis()),
@@ -60,7 +64,8 @@ class EditorViewModel(private val app: AppContainer, private val projectId: Stri
     var canRedo by mutableStateOf(false); private set
     var recording by mutableStateOf(false); private set
     var recordLevel by mutableStateOf(0f); private set
-    var pxPerMs by mutableStateOf(0.09f)
+    /** Timeline zoom in dp per millisecond. */
+    var pxPerMs by mutableStateOf(0.045f)
 
     val playing: StateFlow<Boolean> get() = preview.playing
 
@@ -529,8 +534,12 @@ class EditorViewModel(private val app: AppContainer, private val projectId: Stri
         preview.release()
     }
 
-    class Factory(private val app: AppContainer, private val projectId: String) : ViewModelProvider.Factory {
+    class Factory(
+        private val app: AppContainer,
+        private val projectId: String,
+        private val previewFactory: (android.content.Context) -> PreviewController = { PreviewPlayer(it) },
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = EditorViewModel(app, projectId) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = EditorViewModel(app, projectId, previewFactory) as T
     }
 }

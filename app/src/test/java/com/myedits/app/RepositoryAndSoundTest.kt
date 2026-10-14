@@ -112,3 +112,29 @@ class RepositoryAndSoundTest {
         assertEquals(t, SoundLibrary.file(dir, "sfx_pop").lastModified())
     }
 }
+
+class InsightsMathTest {
+    private val utc = java.util.TimeZone.getTimeZone("UTC")
+    private val day = 86_400_000L
+    private val now = 20_000L * day + 12 * 3_600_000L
+    private fun ev(daysAgo: Int, type: String = ActivityLog.EXPORTED) = ActivityEvent(type, now - daysAgo * day)
+
+    @Test fun streakCountsConsecutiveDaysEndingTodayOrYesterday() {
+        assertEquals(3, com.myedits.app.ui.home.computeInsights(emptyList(), listOf(ev(0), ev(1), ev(2), ev(4)), now, utc).streak)
+        assertEquals(2, com.myedits.app.ui.home.computeInsights(emptyList(), listOf(ev(1), ev(2)), now, utc).streak)
+        assertEquals(0, com.myedits.app.ui.home.computeInsights(emptyList(), listOf(ev(2)), now, utc).streak)
+        assertEquals(0, com.myedits.app.ui.home.computeInsights(emptyList(), emptyList(), now, utc).streak)
+    }
+
+    @Test fun perDayBucketsCoverLastSevenDaysOldestFirst() {
+        val r = com.myedits.app.ui.home.computeInsights(emptyList(), listOf(ev(0), ev(0, ActivityLog.CREATED), ev(6), ev(7), ev(3, ActivityLog.RECORDED)), now, utc)
+        assertEquals(listOf(1, 0, 0, 0, 0, 0, 2), r.perDay)
+        assertEquals(7, r.dayLabels.size)
+    }
+
+    @Test fun totalsComeFromProjectsAndExports() {
+        val p = Project("a", "a", 0, 0, clips = listOf(com.myedits.app.engine.ProjectOps.makeImageClip("/x.jpg", 1, 1, 4000)))
+        val r = com.myedits.app.ui.home.computeInsights(listOf(p, p), listOf(ev(0), ev(1), ev(2, ActivityLog.CREATED)), now, utc)
+        assertEquals(2, r.projects); assertEquals(2, r.exports); assertEquals(8000L, r.totalMs)
+    }
+}

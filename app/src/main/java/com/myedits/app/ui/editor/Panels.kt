@@ -67,7 +67,8 @@ class EditorActions(
 @Composable
 fun EditorBottom(vm: EditorViewModel, actions: EditorActions, modifier: Modifier = Modifier) {
     val panel = vm.panel
-    Box(modifier.fillMaxWidth().background(EditsColors.Surface)) {
+    val scroll = rememberScrollState()
+    Box(modifier.fillMaxWidth().background(EditsColors.Surface).then(if (panel != Panel.NONE) Modifier.verticalScroll(scroll) else Modifier)) {
         when (panel) {
             Panel.NONE -> when (vm.selection) {
                 Selection.None -> RootToolbar(vm, actions)
@@ -283,6 +284,7 @@ private fun FilterPanel(vm: EditorViewModel) {
                 }
             }
         }
+        Spacer(Modifier.height(8.dp))
         if (clip.filter != "none") {
             LabeledSlider("Intensity", clip.filterIntensity, { vm.setFilterIntensity(it, all) }, 0f..1f, { "${(it * 100).roundToInt()}%" }, tag = "slider_intensity")
         } else Spacer(Modifier.height(12.dp))

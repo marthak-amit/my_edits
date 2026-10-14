@@ -47,7 +47,11 @@ private data class LayerVisual(
 
 @UnstableApi
 @Composable
-fun PreviewPane(vm: EditorViewModel, modifier: Modifier = Modifier) {
+fun PreviewPane(
+    vm: EditorViewModel,
+    modifier: Modifier = Modifier,
+    surface: @Composable BoxScope.(EditorViewModel) -> Unit = { DefaultPreviewSurface(it) },
+) {
     val project = vm.project
     val playhead = vm.playheadMs
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -66,15 +70,22 @@ fun PreviewPane(vm: EditorViewModel, modifier: Modifier = Modifier) {
                     Text("Tap + to add videos or photos", color = EditsColors.TextDim, style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
-                AndroidView(
-                    factory = { ctx -> SurfaceView(ctx).also { vm.preview.attach(it) } },
-                    onRelease = { vm.preview.detach(it) },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                surface(vm)
             }
             LayerOverlay(vm, project, playhead, w.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1))
         }
     }
+}
+
+/** The real video surface; tests substitute a still frame because Robolectric cannot render video. */
+@UnstableApi
+@Composable
+fun BoxScope.DefaultPreviewSurface(vm: EditorViewModel) {
+    AndroidView(
+        factory = { ctx -> SurfaceView(ctx).also { vm.preview.attach(it) } },
+        onRelease = { vm.preview.detach(it) },
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 @UnstableApi

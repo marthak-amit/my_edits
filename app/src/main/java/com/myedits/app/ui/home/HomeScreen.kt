@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -344,7 +345,7 @@ private fun InsightsTab(vm: HomeViewModel) {
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier, tag: String) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(EditsColors.Surface2).padding(16.dp).testTag(tag)) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(EditsColors.Surface2).padding(16.dp).semantics(mergeDescendants = true) {}.testTag(tag)) {
         Text(value, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text(label, color = EditsColors.TextDim, style = MaterialTheme.typography.bodySmall)
     }
