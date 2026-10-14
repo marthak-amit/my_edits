@@ -1,0 +1,5 @@
+-keepclassmembers class **$$serializer { *; }
+-keepattributes *Annotation*, InnerClasses
+-dontwarn org.checkerframework.**
+-dontwarn javax.annotation.**
+-dontwarn com.google.errorprone.annotations.**
